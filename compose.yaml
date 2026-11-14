@@ -12,9 +12,9 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    restart: unless-stopped
 
   backend:
-    # Go-приложение: Dockerfile будет добавлен в backend позже.
     build:
       context: ./backend
     environment:
@@ -24,18 +24,33 @@ services:
       DB_NAME: ${POSTGRES_DB:-jasna}
       DB_USER: ${POSTGRES_USER:-jasna}
       DB_PASSWORD: ${POSTGRES_PASSWORD:-jasna_local}
+      DB_SSLMODE: disable
+      MASTER_LOGIN: ${MASTER_LOGIN:-master}
+      MASTER_PASSWORD: ${MASTER_PASSWORD:-}
+      APP_ENV: ${APP_ENV:-production}
+      APP_URL: ${APP_URL:-https://localhost:3000}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-https://localhost:3000}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      YOOKASSA_SHOP_ID: ${YOOKASSA_SHOP_ID:-}
+      YOOKASSA_SECRET_KEY: ${YOOKASSA_SECRET_KEY:-}
+      PAYMENT_RETURN_URL: ${PAYMENT_RETURN_URL:-}
+      PAYMENT_TEST: "true"
+      RECEIPT_ALLOWED_HOSTS: ${RECEIPT_ALLOWED_HOSTS:-lknpd.nalog.ru}
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     depends_on:
       db:
         condition: service_healthy
+    restart: unless-stopped
+    stop_grace_period: 15s
 
   frontend:
-    # Стек пока не выбран. Dockerfile и внутренний порт уточним позже.
+    # Enable only when the frontend and its Dockerfile are implemented.
+    profiles: [frontend]
     build:
       context: ./frontend
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     depends_on:
       - backend
 

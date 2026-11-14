@@ -1,0 +1,105 @@
+package app
+
+import (
+	"github.com/gin-gonic/gin"
+	"net/http"
+	"time"
+)
+
+func New(dbConfig Config) *App {
+	return &App{C: dbConfig, HTTP: &http.Client{Timeout: 15 * time.Second, CheckRedirect: func(req *http.Request, via []*http.Request) error { return http.ErrUseLastResponse }}, Now: time.Now}
+}
+
+func (a *App) Router() *gin.Engine {
+	gin.SetMode(gin.ReleaseMode)
+	g := gin.New()
+	g.Use(gin.Recovery(), a.middleware())
+	g.SetTrustedProxies(nil)
+	g.GET("/healthz", func(c *gin.Context) {
+		if e := a.DB.Ping(c.Request.Context()); e != nil {
+			c.JSON(503, M{"status": "unavailable"})
+			return
+		}
+		c.JSON(200, M{"status": "ok"})
+	})
+	
+	reg := func(method, path, role string, write, idem bool, h Handler) {
+		g.Handle(method, "/api/v1"+path, a.handle(role, write, idem, h))
+	}
+
+	reg("POST", "/auth/access-link/exchange", "guest", true, false, exchange)
+	reg("POST", "/auth/master/login", "guest", true, false, login)
+	reg("GET", "/auth/me", "any", false, false, me)
+	reg("POST", "/auth/logout", "guest", true, false, logout)
+	reg("GET", "/master/families/:id/access-links", "master", false, false, links)
+	reg("POST", "/master/families/:id/access-links", "master", true, false, issueLink)
+	reg("DELETE", "/master/families/:id/access-links/:linkId", "master", true, false, revokeLink)
+	reg("GET", "/public/groups", "guest", false, false, groups)
+	reg("GET", "/public/groups/:id", "guest", false, false, groupGet)
+	reg("GET", "/public/schedule", "guest", false, false, lessons)
+	reg("GET", "/public/plans", "guest", false, false, plans)
+	reg("GET", "/public/booking-rules", "guest", false, false, publicRules)
+	reg("GET", "/lessons/:id/availability", "any", false, false, availability)
+	reg("GET", "/families/me", "parent", false, false, familyGet)
+	reg("GET", "/master/families", "master", false, false, families)
+	reg("GET", "/master/families/:id", "master", false, false, familyGet)
+	reg("POST", "/master/families", "master", true, false, familyCreate)
+	reg("PATCH", "/master/families/:id", "master", true, false, familyPatch)
+	reg("POST", "/master/families/:id/children", "master", true, false, childCreate)
+	reg("GET", "/master/children", "master", false, false, children)
+	reg("GET", "/master/children/:id", "master", false, false, func(r *R) (any, error) { return r.get("children", r.C.Param("id")) })
+	reg("PATCH", "/master/children/:id", "master", true, false, childPatch)
+	reg("GET", "/master/groups", "master", false, false, groups)
+	reg("POST", "/master/groups", "master", true, false, groupSave)
+	reg("PATCH", "/master/groups/:id", "master", true, false, groupSave)
+	reg("GET", "/master/lessons", "master", false, false, lessons)
+	reg("GET", "/master/lessons/:id", "master", false, false, lessonGet)
+	reg("POST", "/master/lessons", "master", true, false, lessonSave)
+	reg("PATCH", "/master/lessons/:id", "master", true, false, lessonSave)
+	reg("POST", "/bookings", "any", true, true, bookingCreate)
+	reg("DELETE", "/bookings/:id", "any", true, false, bookingCancel)
+	reg("POST", "/bookings/:id/transfer", "any", true, true, transfer)
+	reg("GET", "/families/me/bookings", "parent", false, false, bookings)
+	reg("GET", "/families/me/attendance", "parent", false, false, attendanceList)
+	reg("GET", "/master/lessons/:id/bookings", "master", false, false, bookings)
+	reg("PUT", "/master/lessons/:id/attendance/:bookingId", "master", true, false, attendanceSave)
+	reg("GET", "/master/attendance/:bookingId/history", "master", false, false, attendanceHistory)
+	reg("GET", "/master/attendance-rules", "master", false, false, rules)
+	reg("GET", "/master/attendance-rules/:id", "master", false, false, func(r *R) (any, error) { return r.get("attendance_rules", r.C.Param("id")) })
+	reg("POST", "/master/attendance-rules", "master", true, false, ruleSave)
+	reg("PATCH", "/master/attendance-rules/:id", "master", true, false, ruleSave)
+	reg("DELETE", "/master/attendance-rules/:id", "master", true, false, ruleDelete)
+	reg("GET", "/master/plans", "master", false, false, plans)
+	reg("POST", "/master/plans", "master", true, false, planSave)
+	reg("PATCH", "/master/plans/:id", "master", true, false, planSave)
+	reg("GET", "/families/me/subscriptions", "parent", false, false, subscriptions)
+	reg("GET", "/master/children/:id/subscriptions", "master", false, false, subscriptions)
+	reg("GET", "/subscriptions/:id/ledger", "any", false, false, subscriptionLedger)
+	reg("POST", "/master/subscriptions/:id/adjustments", "master", true, true, adjustment)
+	reg("POST", "/invoices", "any", true, true, invoiceCreate)
+	reg("GET", "/invoices/:id", "any", false, false, invoiceGet)
+	reg("GET", "/families/me/invoices", "parent", false, false, invoices)
+	reg("GET", "/master/invoices", "master", false, false, invoices)
+	reg("POST", "/master/invoices/:id/cancel", "master", true, true, invoiceCancel)
+	reg("GET", "/families/me/balance", "parent", false, false, balance)
+	reg("GET", "/master/families/:id/balance", "master", false, false, balance)
+	reg("GET", "/families/me/balance/ledger", "parent", false, false, moneyList)
+	reg("GET", "/master/families/:id/balance/ledger", "master", false, false, moneyList)
+	reg("POST", "/payments/intent", "any", true, true, paymentIntent)
+	reg("GET", "/payments/:id", "any", false, false, paymentGet)
+	reg("GET", "/families/me/payments", "parent", false, false, payments)
+	reg("GET", "/master/payments", "master", false, false, payments)
+	reg("POST", "/master/payments", "master", true, true, manualPayment)
+	g.POST("/api/v1/webhooks/payments/yookassa", a.webhook)
+	reg("POST", "/master/payments/:id/receipts", "master", true, false, receiptSave)
+	reg("PUT", "/master/payments/:id/receipts", "master", true, false, receiptSave)
+	reg("GET", "/receipts/:id", "any", false, false, receiptGet)
+	reg("GET", "/receipts/:id/download", "any", false, false, receiptDownload)
+	reg("GET", "/notifications", "any", false, false, notifications)
+	reg("POST", "/notifications/read-all", "any", true, false, notificationRead)
+	reg("POST", "/notifications/:id/read", "any", true, false, notificationRead)
+	reg("GET", "/master/audit-log", "master", false, false, auditList)
+	reg("GET", "/master/export/:file", "master", false, false, export)
+	g.NoRoute(func(c *gin.Context) { (&R{C: c}).replyError(fail(404, "NOT_FOUND")) })
+	return g
+}
