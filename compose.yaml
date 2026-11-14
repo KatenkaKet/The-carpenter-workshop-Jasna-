@@ -1,0 +1,43 @@
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-jasna}
+      POSTGRES_USER: ${POSTGRES_USER:-jasna}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-jasna_local}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    # Go-приложение: Dockerfile будет добавлен в backend позже.
+    build:
+      context: ./backend
+    environment:
+      PORT: "8080"
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: ${POSTGRES_DB:-jasna}
+      DB_USER: ${POSTGRES_USER:-jasna}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-jasna_local}
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    # Стек пока не выбран. Dockerfile и внутренний порт уточним позже.
+    build:
+      context: ./frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
