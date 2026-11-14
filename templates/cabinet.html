@@ -1,0 +1,78 @@
+{{define "content"}}
+<section><div class="container">
+  <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:20px;">
+    <div>
+      <div class="section-tag">Личный кабинет семьи</div>
+      <h1>Здравствуйте, {{.Family.ParentName}}!</h1>
+      <p style="font-size:13px; color:var(--text-muted);">Телефон: {{.Family.Phone}} {{if .Family.Email}}• Email: {{.Family.Email}}{{end}}</p>
+    </div>
+    <div style="display:flex; gap:8px;">
+      {{if gt .UnreadNotificationsCount 0}}
+      <form action="/cabinet/{{.Token}}/read-notifications" method="POST"><button type="submit" class="btn btn-outline btn-sm">Прочитать ({{.UnreadNotificationsCount}})</button></form>
+      {{end}}
+      <a href="/" class="btn btn-outline btn-sm">Выйти</a>
+    </div>
+  </div>
+  {{if .SubWarning}}<div class="alert-err" style="font-weight:600;">{{.SubWarning}}</div>{{end}}
+  {{if .FlashMessage}}<div class="alert-ok">{{.FlashMessage}}</div>{{end}}
+  {{if .ErrorMessage}}<div class="alert-err">{{.ErrorMessage}}</div>{{end}}
+  {{if .Notifications}}
+  <div class="card" style="margin-bottom:20px; background:var(--bg-wood-soft); padding:14px 18px;">
+    <strong style="font-size:13px;">Последние уведомления:</strong>
+    <ul style="margin-top:6px; padding-left:18px; font-size:13px;">
+      {{range .Notifications}}<li><strong>{{.Date}}</strong> — {{.Text}} {{if not .IsRead}}<span class="pill pill-green">Новое</span>{{end}}</li>{{end}}
+    </ul>
+  </div>
+  {{end}}
+  <div class="grid-3" style="margin-bottom:20px;">
+    <div class="card"><div style="font-size:12px; color:var(--text-muted);">Остаток занятий</div><div style="font-size:28px; font-weight:800; color:var(--brown-dark);">{{.Family.LessonsRemaining}}</div>{{if .Family.SubscriptionValidUntil}}<div style="font-size:12px; color:var(--brown-main); margin-top:4px;">Действует до: <strong>{{.Family.SubscriptionValidUntil}}</strong></div>{{end}}</div>
+    <div class="card"><div style="font-size:12px; color:var(--text-muted);">Денежный баланс</div><div style="font-size:28px; font-weight:800; color:var(--brown-dark);">{{.Family.MoneyBalanceRub}} ₽</div></div>
+    <div class="card"><div style="font-size:12px; color:var(--text-muted);">Дети в профиле</div><div style="font-size:15px; font-weight:700; margin-top:6px;">{{range .Children}}{{.Name}} ({{.Age}} л.)<br/>{{end}}</div></div>
+  </div>
+  <div class="card" style="margin-bottom:20px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+      <h3>Предстоящие занятия вашей семьи</h3><a href="/#schedule" class="btn btn-outline btn-sm">+ Записаться</a>
+    </div>
+    <table>
+      <thead><tr><th>Дата и смена</th><th>Ребёнок</th><th>Управление</th></tr></thead>
+      <tbody>
+        {{range .ActiveBookings}}
+        <tr><td><strong>{{.LessonDate}}</strong></td><td>{{.ChildName}}</td><td>
+          <form action="/cabinet/{{$.Token}}/cancel-booking" method="POST"><input type="hidden" name="booking_id" value="{{.ID}}"/><button type="submit" class="btn btn-outline btn-sm" style="color:var(--danger);">Отменить</button></form>
+        </td></tr>
+        {{else}}<tr><td colspan="3" style="color:var(--text-muted);">Активных записей пока нет.</td></tr>{{end}}
+      </tbody>
+    </table>
+  </div>
+  <div class="card" style="margin-bottom:20px;">
+    <h3>Онлайн-оплата абонемента (с защитой от повторного списания)</h3>
+    <p style="font-size:13px; color:var(--text-muted); margin-bottom:12px;">Каждый платёж защищён уникальным ключом идемпотентности. После оплаты мастер прикрепит чек из «Мой налог».</p>
+    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+      <form action="/cabinet/{{.Token}}/pay" method="POST"><input type="hidden" name="tariff" value="sub_4"/><input type="hidden" name="idem_key" value="{{.NextIdemKey4}}"/><button type="submit" class="btn btn-primary">Оплатить абонемент (4 занятия) — 3 200 ₽</button></form>
+      <form action="/cabinet/{{.Token}}/pay" method="POST"><input type="hidden" name="tariff" value="single_1"/><input type="hidden" name="idem_key" value="{{.NextIdemKey1}}"/><button type="submit" class="btn btn-outline">Оплатить 1 занятие — 900 ₽</button></form>
+    </div>
+  </div>
+  <div class="grid-2">
+    <div class="card">
+      <h3>История посещений</h3>
+      <table><thead><tr><th>Дата</th><th>Ребёнок</th><th>Статус</th></tr></thead><tbody>
+        {{range .Attendances}}<tr><td>{{.DateFormatted}}</td><td>{{.ChildName}}</td><td><span class="pill">{{.StatusLabel}}</span></td></tr>{{else}}<tr><td colspan="3">Записей пока нет.</td></tr>{{end}}
+      </tbody></table>
+    </div>
+    <div class="card">
+      <h3>Оплаты и чеки («Мой налог»)</h3>
+      <table><thead><tr><th>Дата и сумма</th><th>Чек НПД</th><th>Тест дубля</th></tr></thead><tbody>
+        {{range .Payments}}
+        <tr>
+          <td><strong>{{.AmountRub}} ₽</strong> ({{.DateFormatted}})<br/><span style="font-size:11px; color:var(--text-muted);">ID: {{.IdempotencyKey}}</span></td>
+          <td>{{if .ReceiptURL}}<a href="{{.ReceiptURL}}" target="_blank" class="btn btn-outline btn-sm">Открыть чек</a>{{else}}<span style="font-size:12px; color:var(--text-muted);">Ожидает чек</span>{{end}}</td>
+          <td>
+            <form action="/cabinet/{{$.Token}}/pay" method="POST"><input type="hidden" name="tariff" value="sub_4"/><input type="hidden" name="idem_key" value="{{.IdempotencyKey}}"/><button type="submit" class="btn btn-outline btn-sm">Повторить ID</button></form>
+          </td>
+        </tr>
+        {{else}}<tr><td colspan="3">Платежей пока нет.</td></tr>{{end}}
+      </tbody></table>
+    </div>
+  </div>
+</div></section>
+{{end}}

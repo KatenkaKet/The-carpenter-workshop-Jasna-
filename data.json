@@ -1,0 +1,218 @@
+{
+  "next_id": 211,
+  "master_session": "5990eee5afc77be42bfff5b74fe8ce1d",
+  "logo_url": "/uploads/logo_file_2f08638e.jpg",
+  "hero_image_url": "/uploads/hero_file_2c3c5c72.jpg",
+  "group_capacity": 15,
+  "subscription_days": 0,
+  "free_trial_enabled": true,
+  "work_hours": "Ежедневно: 10:00–12:00, 13:00–15:00, 16:00–18:00",
+  "days_off": "Без выходных (по предварительной записи)",
+  "closure_active": false,
+  "closure_notice": "Внимание! Мастерская временно не работает в связи с подготовкой новых заготовок.",
+  "pause_booking": false,
+  "closed_slots": {},
+  "families": [
+    {
+      "id": 1,
+      "parent_name": "Елена Смирнова",
+      "phone": "+7 (912) 000-00-01",
+      "email": "elena@example.ru",
+      "token": "demo-family-token-9f8a7b6c5d4e3f2a",
+      "lessons_remaining": 1,
+      "subscription_valid_until": "",
+      "money_balance_rub": 0,
+      "free_trial_used": false,
+      "children": [
+        {
+          "name": "Артём",
+          "age": 8
+        },
+        {
+          "name": "Софья",
+          "age": 11
+        }
+      ]
+    },
+    {
+      "id": 201,
+      "parent_name": "Сережа",
+      "phone": "89292418175",
+      "email": "shumilov7887@mail.ru",
+      "token": "0720f81913997e5f338d6412127ce39c",
+      "lessons_remaining": 5,
+      "subscription_valid_until": "19.12.2026",
+      "money_balance_rub": 0,
+      "free_trial_used": true,
+      "children": [
+        {
+          "name": "Вася",
+          "age": 5
+        },
+        {
+          "name": "Алена",
+          "age": 7
+        }
+      ]
+    }
+  ],
+  "bookings": [
+    {
+      "id": 202,
+      "date": "2026-11-15",
+      "time_slot": "13:00-15:00",
+      "lesson_date": "2026-11-15 (13:00-15:00)",
+      "family_id": 201,
+      "child_name": "Вася",
+      "parent_name": "Сережа",
+      "lessons_remaining": 0,
+      "is_free_trial": true
+    },
+    {
+      "id": 204,
+      "date": "2026-11-15",
+      "time_slot": "13:00-15:00",
+      "lesson_date": "2026-11-15 (13:00-15:00)",
+      "family_id": 201,
+      "child_name": "Алена",
+      "parent_name": "Сережа",
+      "lessons_remaining": 0,
+      "is_free_trial": true
+    }
+  ],
+  "attendances": [],
+  "payments": [
+    {
+      "id": 210,
+      "family_id": 201,
+      "parent_name": "Сережа",
+      "date_formatted": "14.11.2026",
+      "amount_rub": 3200,
+      "status_label": "Оплачено онлайн (СБП)",
+      "idempotency_key": "pay_8c452fac",
+      "receipt_url": ""
+    },
+    {
+      "id": 208,
+      "family_id": 201,
+      "parent_name": "Сережа",
+      "date_formatted": "14.11.2026",
+      "amount_rub": 900,
+      "status_label": "Оплачено онлайн (СБП)",
+      "idempotency_key": "pay_74ae2da7",
+      "receipt_url": ""
+    },
+    {
+      "id": 206,
+      "family_id": 1,
+      "parent_name": "Елена Смирнова",
+      "date_formatted": "14.11.2026",
+      "amount_rub": 900,
+      "status_label": "Оплачено онлайн (СБП)",
+      "idempotency_key": "pay_2eb9d6af",
+      "receipt_url": ""
+    }
+  ],
+  "notifications": [
+    {
+      "id": 211,
+      "family_id": 201,
+      "date": "14.11.2026",
+      "text": "Оплата 3200 ₽ получена (+4 зан.).",
+      "is_read": false
+    },
+    {
+      "id": 209,
+      "family_id": 201,
+      "date": "14.11.2026",
+      "text": "Оплата 900 ₽ получена (+1 зан.).",
+      "is_read": false
+    },
+    {
+      "id": 207,
+      "family_id": 1,
+      "date": "14.11.2026",
+      "text": "Оплата 900 ₽ получена (+1 зан.).",
+      "is_read": false
+    },
+    {
+      "id": 205,
+      "family_id": 201,
+      "date": "14.11.2026",
+      "text": "Запись подтверждена: Алена на 2026-11-15 (13:00-15:00).",
+      "is_read": true
+    },
+    {
+      "id": 203,
+      "family_id": 201,
+      "date": "14.11.2026",
+      "text": "Запись подтверждена: Вася на 2026-11-15 (13:00-15:00).",
+      "is_read": true
+    },
+    {
+      "id": 1,
+      "family_id": 1,
+      "date": "14.11.2026",
+      "text": "Добро пожаловать в кабинет семьи Смирновых (2 ребёнка, группа на 2 места).",
+      "is_read": false
+    }
+  ],
+  "audit_logs": [
+    {
+      "time": "14.11 23:30",
+      "message": "Онлайн-оплата 3200 ₽ от Сережа (+4 ур., ID: pay_8c452fac)"
+    },
+    {
+      "time": "14.11 23:30",
+      "message": "Онлайн-оплата 900 ₽ от Сережа (+1 ур., ID: pay_74ae2da7)"
+    },
+    {
+      "time": "14.11 23:13",
+      "message": "Мастер обновил логотип сайта"
+    },
+    {
+      "time": "14.11 23:12",
+      "message": "Мастер обновил логотип сайта"
+    },
+    {
+      "time": "14.11 22:32",
+      "message": "Онлайн-оплата 900 ₽ от Елена Смирнова (+1 ур., ID: pay_2eb9d6af)"
+    },
+    {
+      "time": "14.11 22:32",
+      "message": "Запись: Алена (Сережа) на 2026-11-15 (13:00-15:00)"
+    },
+    {
+      "time": "14.11 22:32",
+      "message": "Запись: Вася (Сережа) на 2026-11-15 (13:00-15:00)"
+    },
+    {
+      "time": "14.11 22:27",
+      "message": "Обновлён график работы / объявление"
+    },
+    {
+      "time": "14.11 22:26",
+      "message": "Мастер обновил фото обложки сайта"
+    },
+    {
+      "time": "14.11 22:22",
+      "message": "Обновлён график работы / объявление"
+    },
+    {
+      "time": "14.11 22:20",
+      "message": "Вместимость смены изменена на 15 мест"
+    },
+    {
+      "time": "14.11 22:16",
+      "message": "Успешный вход мастера по одноразовому коду (master@yasna.ru)"
+    },
+    {
+      "time": "14.11 22:16",
+      "message": "Отправлен код подтверждения входа мастера на master@yasna.ru"
+    },
+    {
+      "time": "14.11 22:14",
+      "message": "Загружен сценарий приёмки: группа на 2 места, семья с двумя детьми."
+    }
+  ]
+}
