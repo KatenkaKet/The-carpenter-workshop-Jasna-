@@ -41,16 +41,23 @@ func Migrate(ctx context.Context, db *pgxpool.Pool) error {
 	if _, e = tx.Exec(ctx, `CREATE SCHEMA IF NOT EXISTS jasna; CREATE TABLE IF NOT EXISTS jasna.schema_migrations(version integer PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())`); e != nil {
 		return e
 	}
-	var exists bool
-	if e = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM jasna.schema_migrations WHERE version=1)").Scan(&exists); e != nil {
-		return e
-	}
-	if !exists {
-		sql, _ := migrations.ReadFile("migrations/001_init.sql")
-		if _, e = tx.Exec(ctx, string(sql)); e != nil {
-			return fmt.Errorf("migration 1: %w", e)
+	for version, file := range []string{"001_init.sql", "002_workshop.sql"} {
+		var exists bool
+		v := version + 1
+		if e = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM jasna.schema_migrations WHERE version=$1)", v).Scan(&exists); e != nil {
+			return e
 		}
-		if _, e = tx.Exec(ctx, "INSERT INTO jasna.schema_migrations(version) VALUES(1)"); e != nil {
+		if exists {
+			continue
+		}
+		sql, err := migrations.ReadFile("migrations/" + file)
+		if err != nil {
+			return err
+		}
+		if _, e = tx.Exec(ctx, string(sql)); e != nil {
+			return fmt.Errorf("migration %d: %w", v, e)
+		}
+		if _, e = tx.Exec(ctx, "INSERT INTO jasna.schema_migrations(version) VALUES($1)", v); e != nil {
 			return e
 		}
 	}

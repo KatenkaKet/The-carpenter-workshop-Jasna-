@@ -70,9 +70,9 @@ func availability(r *R) (any, error) {
 
 func lessonSave(r *R) (any, error) {
 	patch := r.C.Request.Method == "PATCH"
-	req, opt := "group_id starts_at ends_at", "capacity notes"
+	req, opt := "group_id starts_at ends_at", "capacity notes is_makeup"
 	if patch {
-		req, opt = "expected_version", "starts_at ends_at capacity status cancel_reason notes"
+		req, opt = "expected_version", "starts_at ends_at capacity status cancel_reason notes is_makeup"
 	}
 	if e := r.fields(req, opt); e != nil {
 		return nil, e
@@ -120,6 +120,14 @@ func lessonSave(r *R) (any, error) {
 	if e != nil || !end.After(start) {
 		return nil, invalid("LESSON_TIME")
 	}
+	if end.Sub(start) > 12*time.Hour || end.Sub(start)%time.Minute != 0 {
+		return nil, invalid("LESSON_DURATION")
+	}
+	if m["is_makeup"] != nil {
+		if e = boolean(m, "is_makeup"); e != nil {
+			return nil, e
+		}
+	}
 	if !patch && !start.After(r.now()) {
 		return nil, invalid("LESSON_IN_PAST")
 	}
@@ -140,6 +148,13 @@ func lessonSave(r *R) (any, error) {
 		}
 	}
 	if patch {
+		var invalidReservations bool
+		if e = r.DB.QueryRow(r.ctx(), `SELECT EXISTS(SELECT 1 FROM subscription_reservations x JOIN bookings b ON b.id=x.booking_id JOIN subscriptions s ON s.id=x.subscription_id WHERE b.lesson_id=$1 AND x.status='reserved' AND NOT ($2::date BETWEEN s.valid_from AND s.valid_until))`, old["id"], start.In(zone).Format("2006-01-02")).Scan(&invalidReservations); e != nil {
+			return nil, e
+		}
+		if invalidReservations {
+			return nil, conflict("RESERVATION_DATE_CONFLICT")
+		}
 		if e = r.DB.QueryRow(r.ctx(), "SELECT count(*) FROM bookings WHERE lesson_id=$1 AND status='active'", old["id"]).Scan(&n); e != nil {
 			return nil, e
 		}
@@ -252,21 +267,35 @@ func (r *R) book(lessonID, childID string) (M, error) {
 	if _, e = r.insert("attendance", M{"booking_id": b["id"]}); e != nil {
 		return nil, e
 	}
-	if e = r.notify(str(child, "family_id"), "booking.confirmed", str(b, "id")+":confirmed", M{"booking_id": b["id"]}); e != nil {
+	kind := valueOr(str(r.Body, "funding_kind"), "legacy")
+	if !contains([]string{"legacy", "subscription", "single_lesson"}, kind) {
+		return nil, invalid("FUNDING_KIND")
+	}
+	if _, e = r.update("bookings", str(b, "id"), M{"funding_kind": kind}); e != nil {
+		return nil, e
+	}
+	if e = r.reserve(b, l, kind); e != nil {
+		return nil, e
+	}
+	b, e = r.get("bookings", str(b, "id"))
+	if e != nil {
 		return nil, e
 	}
 	return b, r.audit("booking.created", "bookings", str(b, "id"), nil, b, "")
 }
 
 func bookingCreate(r *R) (any, error) {
-	if e := r.fields("lesson_id child_id", ""); e != nil {
+	if e := r.fields("lesson_id child_id", "funding_kind"); e != nil {
 		return nil, e
 	}
 	return r.book(str(r.Body, "lesson_id"), str(r.Body, "child_id"))
 }
 
 func (r *R) cancelBooking(b, l M, reason string) (M, error) {
-	rule := object(b["rule_snapshot"])
+	rule, ruleErr := r.effectiveRule(b)
+	if ruleErr != nil {
+		return nil, ruleErr
+	}
 	hours := at(l, "starts_at").Sub(r.now()).Hours()
 	if reason == "parent" && (!yes(rule, "parent_cancel_allowed") || hours < float64(num(rule, "cancel_deadline_hours"))) {
 		return nil, conflict("CANCELLATION_DEADLINE")
@@ -327,7 +356,10 @@ func transfer(r *R) (any, error) {
 	if e != nil {
 		return nil, e
 	}
-	rule := object(b["rule_snapshot"])
+	rule, ruleErr := r.effectiveRule(b)
+	if ruleErr != nil {
+		return nil, ruleErr
+	}
 	if l["group_id"] != target["group_id"] || l["id"] == target["id"] {
 		return nil, invalid("TRANSFER_TARGET")
 	}
@@ -337,6 +369,7 @@ func transfer(r *R) (any, error) {
 	if _, e = r.cancelBooking(b, l, "transfer"); e != nil {
 		return nil, e
 	}
+	r.Body["funding_kind"] = b["funding_kind"]
 	next, e := r.book(str(target, "id"), str(b, "child_id"))
 	if e != nil {
 		return nil, e
@@ -441,13 +474,16 @@ func (r *R) mark(b, l M, status, reason, comment string) (M, error) {
 	if str(old, "status") == status && str(old, "cancel_reason") == reason {
 		return r.attendanceResult(old)
 	}
-	rule := object(b["rule_snapshot"])
+	rule, ruleErr := r.effectiveRule(b)
+	if ruleErr != nil {
+		return nil, ruleErr
+	}
 	cancel := at(b, "cancelled_at")
 	if cancel.IsZero() {
 		cancel = r.now()
 	}
 	want := chargeFor(rule, status, reason, at(l, "starts_at"), cancel)
-	changes := M{"status": status, "cancel_reason": nullable(reason), "comment": comment, "marked_at": r.now(), "marked_by": r.User["user_id"], "charged": want}
+	changes := M{"status": status, "cancel_reason": nullable(reason), "comment": comment, "marked_at": r.now(), "marked_by": r.User["user_id"], "charged": want, "applied_rule": rule}
 
 	// A prepaid single lesson can be canceled before it ever receives an attendance mark.
 	// Its invoice is a financial effect even while attendance.charged is still false.
@@ -492,8 +528,8 @@ func (r *R) mark(b, l M, status, reason, comment string) (M, error) {
 					return nil, err
 				}
 				day := at(l, "starts_at").In(zone).Format("2006-01-02")
-				sub, err := one(r.ctx(), r.DB, `SELECT * FROM subscriptions WHERE child_id=$1 AND group_id=$2 AND valid_from<=$3::date AND valid_until>=$3::date AND lessons_remaining>0 ORDER BY valid_until,id LIMIT 1`, b["child_id"], l["group_id"], day)
-				if err == nil {
+				sub, err := one(r.ctx(), r.DB, `SELECT s.* FROM subscriptions s LEFT JOIN subscription_reservations own ON own.subscription_id=s.id AND own.booking_id=$4 WHERE s.child_id=$1 AND s.group_id=$2 AND s.valid_from<=$3::date AND s.valid_until>=$3::date AND (s.suspended_at IS NULL OR own.status='reserved') AND s.lessons_remaining>(SELECT count(*) FROM subscription_reservations x WHERE x.subscription_id=s.id AND x.status='reserved' AND x.booking_id<>$4) ORDER BY (own.id IS NOT NULL) DESC,s.valid_until,s.id LIMIT 1`, b["child_id"], l["group_id"], day, b["id"])
+				if err == nil && str(b, "funding_kind") != "single_lesson" {
 					entry, e := r.insert("subscription_ledger", M{"subscription_id": sub["id"], "delta": -1, "reason": "attendance_charge", "attendance_id": old["id"], "created_by": r.User["user_id"], "comment": comment})
 					if e != nil {
 						return nil, e
@@ -502,8 +538,10 @@ func (r *R) mark(b, l M, status, reason, comment string) (M, error) {
 					changes["charge_entry_id"] = entry["id"]
 					changes["invoice_id"] = nil
 				} else {
-					if ae, ok := err.(*APIError); !ok || ae.Status != 404 {
-						return nil, err
+					if err != nil {
+						if ae, ok := err.(*APIError); !ok || ae.Status != 404 {
+							return nil, err
+						}
 					}
 					inv, e := r.singleInvoice(b, l)
 					if e != nil {
@@ -513,6 +551,33 @@ func (r *R) mark(b, l M, status, reason, comment string) (M, error) {
 					changes["subscription_id"] = nil
 					changes["charge_entry_id"] = nil
 				}
+			}
+		}
+	}
+	if status == "pending" && str(b, "status") == "active" {
+		var available bool
+		if e = r.DB.QueryRow(r.ctx(), `SELECT coalesce(bool_and(s.lessons_remaining>(SELECT count(*) FROM subscription_reservations x WHERE x.subscription_id=s.id AND x.status='reserved' AND x.booking_id<>$1)),true) FROM subscription_reservations r JOIN subscriptions s ON s.id=r.subscription_id WHERE r.booking_id=$1`, b["id"]).Scan(&available); e != nil {
+			return nil, e
+		}
+		if !available {
+			return nil, conflict("NO_AVAILABLE_LESSONS")
+		}
+		if e = r.exec("UPDATE subscription_reservations SET status='reserved',version=version+1 WHERE booking_id=$1", b["id"]); e != nil {
+			return nil, e
+		}
+	}
+	if status != "pending" {
+		sid := str(old, "subscription_id")
+		if v, ok := changes["subscription_id"]; ok {
+			sid, _ = v.(string)
+		}
+		if want && sid != "" {
+			if e = r.exec(`INSERT INTO subscription_reservations(booking_id,subscription_id,status) VALUES($1,$2,'consumed') ON CONFLICT(booking_id) DO UPDATE SET subscription_id=excluded.subscription_id,status='consumed',version=subscription_reservations.version+1`, b["id"], sid); e != nil {
+				return nil, e
+			}
+		} else {
+			if e = r.exec("UPDATE subscription_reservations SET status='released',version=version+1 WHERE booking_id=$1", b["id"]); e != nil {
+				return nil, e
 			}
 		}
 	}

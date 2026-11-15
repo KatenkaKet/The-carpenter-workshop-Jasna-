@@ -22,11 +22,9 @@ func (a *App) Router() *gin.Engine {
 		}
 		c.JSON(200, M{"status": "ok"})
 	})
-	
 	reg := func(method, path, role string, write, idem bool, h Handler) {
 		g.Handle(method, "/api/v1"+path, a.handle(role, write, idem, h))
 	}
-
 	reg("POST", "/auth/access-link/exchange", "guest", true, false, exchange)
 	reg("POST", "/auth/master/login", "guest", true, false, login)
 	reg("GET", "/auth/me", "any", false, false, me)
@@ -34,6 +32,12 @@ func (a *App) Router() *gin.Engine {
 	reg("GET", "/master/families/:id/access-links", "master", false, false, links)
 	reg("POST", "/master/families/:id/access-links", "master", true, false, issueLink)
 	reg("DELETE", "/master/families/:id/access-links/:linkId", "master", true, false, revokeLink)
+	reg("GET", "/bookings/:id/cancellation", "any", false, false, cancellationQuote)
+	reg("GET", "/master/groups/:id/booking-policy", "master", false, false, groupPolicy)
+	reg("PUT", "/master/groups/:id/booking-policy", "master", true, false, groupPolicy)
+	reg("POST", "/master/subscription-purchases", "master", true, true, manualPurchase)
+	reg("POST", "/master/payments/:id/void", "master", true, true, paymentVoid)
+	reg("DELETE", "/master/receipts/:id", "master", true, false, receiptDelete)
 	reg("GET", "/public/groups", "guest", false, false, groups)
 	reg("GET", "/public/groups/:id", "guest", false, false, groupGet)
 	reg("GET", "/public/schedule", "guest", false, false, lessons)
@@ -61,6 +65,8 @@ func (a *App) Router() *gin.Engine {
 	reg("POST", "/bookings/:id/transfer", "any", true, true, transfer)
 	reg("GET", "/families/me/bookings", "parent", false, false, bookings)
 	reg("GET", "/families/me/attendance", "parent", false, false, attendanceList)
+	reg("GET", "/master/bookings", "master", false, false, bookings)
+	reg("GET", "/master/subscriptions", "master", false, false, subscriptions)
 	reg("GET", "/master/lessons/:id/bookings", "master", false, false, bookings)
 	reg("PUT", "/master/lessons/:id/attendance/:bookingId", "master", true, false, attendanceSave)
 	reg("GET", "/master/attendance/:bookingId/history", "master", false, false, attendanceHistory)

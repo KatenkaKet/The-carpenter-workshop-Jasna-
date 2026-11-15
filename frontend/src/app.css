@@ -1,0 +1,131 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-paper font-sans text-ink antialiased;
+    background-image:
+      radial-gradient(
+        circle at 8% -8%,
+        rgba(196, 135, 59, 0.12),
+        transparent 38%
+      ),
+      radial-gradient(circle at 96% 4%, rgba(63, 91, 74, 0.1), transparent 34%);
+    background-attachment: fixed;
+  }
+
+  :focus-visible {
+    @apply outline-none ring-2 ring-honey/70 ring-offset-2 ring-offset-paper;
+  }
+
+  button,
+  a {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  ::selection {
+    @apply bg-honey-soft text-ink;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-[22px] border border-line/90 bg-card shadow-soft;
+  }
+
+  .card-soft {
+    @apply rounded-2xl border border-line/70 bg-paper/60;
+  }
+
+  .eyebrow {
+    @apply text-[11px] font-bold uppercase tracking-[0.18em] text-honey;
+  }
+
+  .page-title {
+    @apply font-display text-[30px] font-semibold leading-[1.1] tracking-tight sm:text-4xl;
+  }
+
+  .section-title {
+    @apply font-display text-xl font-semibold leading-tight tracking-tight;
+  }
+
+  .btn {
+    @apply inline-flex min-h-[44px] items-center justify-center gap-2 rounded-full px-4 text-sm font-bold transition active:scale-[0.99] disabled:pointer-events-none disabled:opacity-45;
+  }
+
+  .btn-primary {
+    @apply btn bg-forest text-card hover:bg-ink;
+  }
+
+  .btn-honey {
+    @apply btn bg-honey text-white hover:bg-[#AE742F];
+  }
+
+  .btn-ghost {
+    @apply btn border border-line bg-card text-ink hover:border-forest/40 hover:bg-paper;
+  }
+
+  .btn-quiet {
+    @apply btn text-muted hover:bg-paper hover:text-ink;
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold leading-none;
+  }
+
+  .field {
+    @apply w-full rounded-xl border border-line bg-card px-3.5 py-2.5 text-sm text-ink placeholder:text-muted/60 focus:border-forest/50 focus:outline-none;
+  }
+
+  .label {
+    @apply mb-1.5 block text-xs font-bold text-muted;
+  }
+
+  .nav-item {
+    @apply flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold text-muted transition hover:bg-paper hover:text-ink;
+  }
+
+  .nav-item-active {
+    @apply bg-forest text-card hover:bg-forest hover:text-card;
+  }
+
+  .scroll-x {
+    scrollbar-width: none;
+  }
+
+  .scroll-x::-webkit-scrollbar {
+    display: none;
+  }
+
+  .safe-bottom {
+    padding-bottom: calc(env(safe-area-inset-bottom) + 0.5rem);
+  }
+}
+
+.sheet-enter-active,
+.sheet-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.sheet-enter-from,
+.sheet-leave-to {
+  opacity: 0;
+}
+
+.toast-enter-active,
+.toast-leave-active {
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+
+.toast-enter-from,
+.toast-leave-to {
+  opacity: 0;
+  transform: translateY(10px);
+}

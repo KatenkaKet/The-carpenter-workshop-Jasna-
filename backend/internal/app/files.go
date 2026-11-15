@@ -12,10 +12,10 @@ import (
 	"strings"
 )
 
-const receiptSQL = `SELECT id,payment_id,kind,external_link,mime_type,file_name,uploaded_by,uploaded_at,version,CASE WHEN kind='file' THEN '/api/v1/receipts/'||id||'/download' END download_url FROM receipts`
+const receiptSQL = `SELECT id,payment_id,kind,external_link,mime_type,file_name,uploaded_by,uploaded_at,version,deleted_at,CASE WHEN kind='file' THEN '/api/v1/receipts/'||id||'/download' END download_url FROM receipts`
 
 func (r *R) receipt(id string) (M, error) {
-	m, e := one(r.ctx(), r.DB, receiptSQL+" WHERE id=$1", id)
+	m, e := one(r.ctx(), r.DB, receiptSQL+" WHERE id=$1 AND deleted_at IS NULL", id)
 	if e != nil {
 		return nil, e
 	}
@@ -110,7 +110,7 @@ func receiptSave(r *R) (any, error) {
 			return nil, e
 		}
 	}
-	if r.C.Request.Method == "POST" && exists {
+	if r.C.Request.Method == "POST" && exists && old["deleted_at"] == nil {
 		return nil, conflict("RECEIPT_ALREADY_ATTACHED")
 	}
 	if r.C.Request.Method == "PUT" && !exists {
@@ -118,11 +118,17 @@ func receiptSave(r *R) (any, error) {
 	}
 	var v M
 	if exists {
+		if old["deleted_at"] != nil {
+			m["deleted_at"] = nil
+		}
 		expected, e := strconv.ParseInt(r.C.PostForm("expected_version"), 10, 64)
-		if e != nil || expected != num(old, "version") {
+		if (e != nil || expected != num(old, "version")) && old["deleted_at"] == nil {
 			return nil, conflict("VERSION_CONFLICT")
 		}
 		comment := strings.TrimSpace(r.C.PostForm("comment"))
+		if comment == "" && old["deleted_at"] != nil {
+			comment = "Новый чек после удаления"
+		}
 		if comment == "" {
 			return nil, invalid("COMMENT_REQUIRED")
 		}
@@ -146,13 +152,15 @@ func receiptSave(r *R) (any, error) {
 	return result, r.audit("receipt.saved", "receipts", str(v, "id"), old, result, r.C.PostForm("comment"))
 }
 
+const visibleNotice = `NOT EXISTS(SELECT 1 FROM notifications newer WHERE newer.user_id=notifications.user_id AND newer.type=notifications.type AND newer.payload=notifications.payload AND (newer.created_at,newer.id)>(notifications.created_at,notifications.id)) AND type<>'booking.confirmed' AND (type NOT IN ('payment.required','payment.voided') OR EXISTS(SELECT 1 FROM invoices i WHERE i.id::text=notifications.payload->>'invoice_id' AND i.status='open' AND NOT i.compensated)) AND (type<>'receipt.attached' OR EXISTS(SELECT 1 FROM receipts r WHERE r.id::text=notifications.payload->>'receipt_id' AND r.deleted_at IS NULL))`
+
 func notifications(r *R) (any, error) {
-	v, e := r.list("SELECT * FROM notifications WHERE user_id=$1 AND ($2<>'true' OR read_at IS NULL) ORDER BY created_at,id", r.User["user_id"], r.C.Query("unread"))
+	v, e := r.list("SELECT * FROM notifications WHERE "+visibleNotice+" AND user_id=$1 AND ($2<>'true' OR read_at IS NULL) ORDER BY created_at,id", r.User["user_id"], r.C.Query("unread"))
 	if e != nil {
 		return nil, e
 	}
 	var n int
-	if e = r.DB.QueryRow(r.ctx(), "SELECT count(*) FROM notifications WHERE user_id=$1 AND read_at IS NULL", r.User["user_id"]).Scan(&n); e != nil {
+	if e = r.DB.QueryRow(r.ctx(), "SELECT count(*) FROM notifications WHERE "+visibleNotice+" AND user_id=$1 AND read_at IS NULL", r.User["user_id"]).Scan(&n); e != nil {
 		return nil, e
 	}
 	object(v)["unread_count"] = n
@@ -197,7 +205,7 @@ func (r *R) export(w io.Writer, kind, from, to string) error {
 		sql = `SELECT b.id booking_id,l.id lesson_id,l.starts_at,b.child_id,c.full_name child_full_name,a.status,a.cancel_reason,a.charged,a.subscription_id,a.invoice_id,a.marked_at FROM attendance a JOIN bookings b ON b.id=a.booking_id JOIN lessons l ON l.id=b.lesson_id JOIN children c ON c.id=b.child_id WHERE ($1='' OR l.starts_at>=nullif($1,'')::timestamptz) AND ($2='' OR l.starts_at<nullif($2,'')::timestamptz) AND ($3='' OR l.group_id::text=$3) ORDER BY l.starts_at,b.id`
 		args = []any{from, to, r.C.Query("group_id")}
 	case "payments":
-		sql = `SELECT p.id,p.invoice_id,p.child_id,p.family_id,p.amount_minor,p.currency,p.method,p.status,p.paid_at,p.provider_payment_id,r.id receipt_id FROM payments p LEFT JOIN receipts r ON r.payment_id=p.id WHERE ($1='' OR p.created_at>=nullif($1,'')::timestamptz) AND ($2='' OR p.created_at<nullif($2,'')::timestamptz) AND ($3='' OR p.status=$3) AND ($4='' OR p.method=$4) ORDER BY p.created_at,p.id`
+		sql = `SELECT p.id,p.invoice_id,p.child_id,p.family_id,p.amount_minor,p.currency,p.method,p.status,p.paid_at,p.provider_payment_id,r.id receipt_id FROM payments p LEFT JOIN receipts r ON r.payment_id=p.id AND r.deleted_at IS NULL WHERE ($1='' OR p.created_at>=nullif($1,'')::timestamptz) AND ($2='' OR p.created_at<nullif($2,'')::timestamptz) AND ($3='' OR p.status=$3) AND ($4='' OR p.method=$4) ORDER BY p.created_at,p.id`
 		args = []any{from, to, r.C.Query("status"), r.C.Query("method")}
 	default:
 		return fail(404, "NOT_FOUND")

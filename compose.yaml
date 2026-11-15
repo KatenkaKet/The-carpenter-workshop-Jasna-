@@ -45,12 +45,10 @@ services:
     stop_grace_period: 15s
 
   frontend:
-    # Enable only when the frontend and its Dockerfile are implemented.
-    profiles: [frontend]
     build:
       context: ./frontend
     ports:
-      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:3000:80"
     depends_on:
       - backend
 

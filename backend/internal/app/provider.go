@@ -258,7 +258,7 @@ func (a *App) jobs(ctx context.Context) {
 				}
 			}
 			if typ != "" {
-				key := str(s, "id") + ":" + typ + ":" + r.now().In(zone).Format("2006-01-02")
+				key := str(s, "id") + ":" + typ
 				if e = r.notify(str(s, "family_id"), typ, key, M{"subscription_id": s["id"], "lessons_remaining": s["lessons_remaining"]}); e != nil {
 					return nil, e
 				}
@@ -272,7 +272,7 @@ func (a *App) jobs(ctx context.Context) {
 			return nil, e
 		}
 		for _, i := range invs {
-			if e = r.notify(str(i, "family_id"), "payment.required", str(i, "id")+":required:"+r.now().In(zone).Format("2006-01-02"), M{"invoice_id": i["id"]}); e != nil {
+			if e = r.notify(str(i, "family_id"), "payment.required", str(i, "id")+":required", M{"invoice_id": i["id"]}); e != nil {
 				return nil, e
 			}
 		}

@@ -91,6 +91,13 @@ func invoiceCreate(r *R) (any, error) {
 		if b["child_id"] != r.Body["child_id"] || str(b, "status") != "active" {
 			return nil, conflict("BOOKING_UNAVAILABLE")
 		}
+		var reserved bool
+		if e = r.DB.QueryRow(r.ctx(), "SELECT EXISTS(SELECT 1 FROM subscription_reservations WHERE booking_id=$1 AND status IN ('reserved','consumed'))", b["id"]).Scan(&reserved); e != nil {
+			return nil, e
+		}
+		if reserved {
+			return nil, conflict("ALREADY_COVERED")
+		}
 		a, e := one(r.ctx(), r.DB, "SELECT * FROM attendance WHERE booking_id=$1", b["id"])
 		if e != nil {
 			return nil, e
@@ -146,7 +153,7 @@ func (r *R) compensateInvoice(id string, cancel bool) error {
 			status = "paid"
 		}
 	}
-	last, e := one(r.ctx(), r.DB, "SELECT * FROM money_ledger WHERE invoice_id=$1 AND reason<>'payment' ORDER BY created_at DESC,id DESC LIMIT 1", id)
+	last, e := one(r.ctx(), r.DB, "SELECT * FROM money_ledger WHERE invoice_id=$1 AND reason IN ('invoice','invoice_reversal','invoice_reinstated') ORDER BY created_at DESC,id DESC LIMIT 1", id)
 	if e != nil {
 		return e
 	}
@@ -201,7 +208,7 @@ func invoices(r *R) (any, error) {
 	return r.list(invoiceSQL+` WHERE ($1='' OR i.family_id::text=$1) AND ($2='' OR i.child_id::text=$2) AND ($3='' OR i.status=$3) ORDER BY i.created_at,i.id`, family, r.C.Query("child_id"), r.C.Query("status"))
 }
 
-const subSQL = `SELECT s.*,coalesce((SELECT sum(delta) FROM subscription_ledger WHERE subscription_id=s.id AND reason='manual_adjustment'),0)::integer adjustments_total,CASE WHEN lessons_remaining=0 THEN 'exhausted' WHEN valid_until<(now() AT TIME ZONE 'Asia/Yekaterinburg')::date THEN 'expired' WHEN valid_from>(now() AT TIME ZONE 'Asia/Yekaterinburg')::date THEN 'scheduled' ELSE 'active' END status FROM subscriptions s`
+const subSQL = `SELECT s.*,(SELECT count(*) FROM subscription_reservations x WHERE x.subscription_id=s.id AND x.status='reserved')::integer lessons_reserved,CASE WHEN s.suspended_at IS NOT NULL OR s.valid_until<(now() AT TIME ZONE 'Asia/Yekaterinburg')::date THEN 0 ELSE greatest(0,s.lessons_remaining-(SELECT count(*) FROM subscription_reservations x WHERE x.subscription_id=s.id AND x.status='reserved')) END::integer lessons_available,coalesce((SELECT -sum(delta) FROM subscription_ledger WHERE subscription_id=s.id AND reason IN ('attendance_charge','attendance_reversal')),0)::integer lessons_used,coalesce((SELECT sum(delta) FROM subscription_ledger WHERE subscription_id=s.id AND reason='manual_adjustment'),0)::integer adjustments_total,CASE WHEN suspended_at IS NOT NULL THEN 'suspended' WHEN lessons_remaining=0 THEN 'exhausted' WHEN valid_until<(now() AT TIME ZONE 'Asia/Yekaterinburg')::date THEN 'expired' WHEN valid_from>(now() AT TIME ZONE 'Asia/Yekaterinburg')::date THEN 'scheduled' ELSE 'active' END status FROM subscriptions s`
 
 func subscriptions(r *R) (any, error) {
 	family, child := "", r.C.Query("child_id")
@@ -242,7 +249,11 @@ func adjustment(r *R) (any, error) {
 	if e != nil {
 		return nil, e
 	}
-	if num(s, "lessons_remaining")+num(r.Body, "delta") < 0 {
+	var reserved int64
+	if e = r.DB.QueryRow(r.ctx(), "SELECT count(*) FROM subscription_reservations WHERE subscription_id=$1 AND status='reserved'", s["id"]).Scan(&reserved); e != nil {
+		return nil, e
+	}
+	if num(s, "lessons_remaining")+num(r.Body, "delta") < reserved {
 		return nil, conflict("NO_LESSONS_REMAINING")
 	}
 	entry, e := r.insert("subscription_ledger", M{"subscription_id": s["id"], "delta": r.Body["delta"], "reason": "manual_adjustment", "created_by": r.User["user_id"], "comment": r.Body["comment"]})
@@ -338,6 +349,9 @@ func (r *R) credit(p M, paidAt string) (M, error) {
 	if str(p, "status") == "succeeded" {
 		return p, nil
 	}
+	if str(p, "status") == "voided" {
+		return nil, conflict("PAYMENT_VOIDED")
+	}
 	inv, e := r.get("invoices", str(p, "invoice_id"))
 	if e != nil {
 		return nil, e
@@ -359,6 +373,11 @@ func (r *R) credit(p M, paidAt string) (M, error) {
 		if e = r.DB.QueryRow(r.ctx(), "SELECT EXISTS(SELECT 1 FROM subscriptions WHERE invoice_id=$1)", inv["id"]).Scan(&exists); e != nil {
 			return nil, e
 		}
+		if exists {
+			if e = r.exec("UPDATE subscriptions SET suspended_at=NULL,version=version+1 WHERE invoice_id=$1", inv["id"]); e != nil {
+				return nil, e
+			}
+		}
 		if !exists {
 			plan := object(inv["plan_snapshot"])
 			s, e := r.insert("subscriptions", M{"invoice_id": inv["id"], "child_id": inv["child_id"], "family_id": inv["family_id"], "group_id": inv["group_id"], "lessons_total": plan["lessons_total"], "valid_from": inv["valid_from"], "valid_until": inv["valid_until"]})
@@ -369,6 +388,9 @@ func (r *R) credit(p M, paidAt string) (M, error) {
 				return nil, e
 			}
 		}
+	}
+	if e = r.exec("UPDATE notifications SET read_at=coalesce(read_at,now()) WHERE type='payment.required' AND payload->>'invoice_id'=$1", str(inv, "id")); e != nil {
+		return nil, e
 	}
 	if e = r.notify(str(p, "family_id"), "payment.succeeded", str(p, "id")+":paid", M{"payment_id": p["id"]}); e != nil {
 		return nil, e
@@ -381,7 +403,7 @@ func (r *R) credit(p M, paidAt string) (M, error) {
 	return v, r.audit("payment.succeeded", "payments", str(p, "id"), paymentPublic(p), paymentPublic(v), "")
 }
 
-const paymentsSQL = `SELECT p.id,p.created_at,p.version,p.invoice_id,p.family_id,p.child_id,p.amount_minor,p.currency,p.method,p.status,p.provider_payment_id,p.payment_url,p.paid_at,p.comment,(SELECT jsonb_build_object('id',r.id,'kind',r.kind,'external_link',r.external_link,'download_url','/api/v1/receipts/'||r.id||'/download') FROM receipts r WHERE r.payment_id=p.id) receipt FROM payments p`
+const paymentsSQL = `SELECT p.id,p.created_at,p.version,p.invoice_id,p.family_id,p.child_id,p.amount_minor,p.currency,p.method,p.status,p.provider_payment_id,p.payment_url,p.paid_at,p.comment,p.voided_at,p.void_reason,(SELECT jsonb_build_object('id',r.id,'kind',r.kind,'external_link',r.external_link,'download_url','/api/v1/receipts/'||r.id||'/download') FROM receipts r WHERE r.payment_id=p.id AND r.deleted_at IS NULL) receipt FROM payments p`
 
 func payments(r *R) (any, error) {
 	family := r.C.Query("family_id")

@@ -1,0 +1,2404 @@
+{
+  "info": {
+    "_postman_id": "370102bb-8fcb-424f-b81c-18204011d6d3",
+    "name": "Jasna — проверка Go API",
+    "description": "Начните с README.md в папке postman. Импортируйте окружение Jasna Local, заполните master_password. Запускайте папки отдельно по порядку; всю коллекцию целиком не запускайте. Сессии сохраняются раздельно, cookie jar отключён для каждого запроса.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "01 — Основной сценарий (Run folder)",
+      "description": "Запустить эту папку в Runner: 1 iteration, Delay 0, все запросы по порядку. Создаёт вымышленные данные, оплачивает наличными, ждёт начало короткого занятия и проверяет 4 → 3. Не требует ЮKassa. Повторный запуск создаёт новую семью/группу.",
+      "item": [
+        {
+          "name": "01 — Проверить сервер",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              }
+            ],
+            "url": "{{base_url}}/healthz",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) {",
+                  "pm.expect(pm.response.json().status).to.eql('ok');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "02 — Войти мастером и начать новый сценарий",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/auth/master/login",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"login\": \"{{master_login}}\",\n  \"password\": \"{{master_password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('master_password')) throw new Error('Укажите master_password в окружении Jasna Local — тот же пароль, что MASTER_PASSWORD сервера.');",
+                  "const run=pm.variables.replaceIn('{{$guid}}');",
+                  "pm.environment.set('run_id',run);",
+                  "pm.environment.set('today',new Date(Date.now()+5*3600000).toISOString().slice(0,10));",
+                  "pm.environment.set('link_expires',new Date(Date.now()+7*86400000).toISOString());",
+                  "['booking_key','booking2_key','booking3_key','invoice_key','cash_key','online_invoice_key','online_key'].forEach(k=>pm.environment.set(k,run+'-'+k));",
+                  "['group_id','lesson_id','family_id','child_id','child2_id','family2_id','child3_id','booking_id','plan_id','invoice_id','payment_id','subscription_id','receipt_id','parent_cookie','parent_csrf','access_token','link_id','online_invoice_id','online_payment_id','payment_url'].forEach(k=>pm.environment.unset(k));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) {",
+                  "const data = pm.response.json();",
+                  "pm.environment.set('master_csrf',data.csrf_token);",
+                  "const header = pm.response.headers.all().find(h => h.key.toLowerCase()==='set-cookie' && h.value.startsWith('yasna_master_session='));",
+                  "pm.test('Сессия получена',()=>pm.expect(header).to.exist);",
+                  "if(header) pm.environment.set('master_cookie',header.value.split(';')[0]);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "03 — Создать группу на два места",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{master_cookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{master_csrf}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/master/groups",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Postman {{run_id}}\",\n  \"capacity\": 2\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code === 201) {",
+                  "const data = pm.response.json();",
+                  "pm.environment.set(\"group_id\", data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "04 — Настроить правила группы",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{master_cookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{master_csrf}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/master/attendance-rules",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"group_id\": \"{{group_id}}\",\n  \"valid_from\": \"{{today}}\",\n  \"attended_charge_lesson\": true,\n  \"missed_charge_lesson\": false,\n  \"parent_cancel_charge_lesson\": false,\n  \"free_cancel_before_hours\": 0,\n  \"parent_cancel_allowed\": true,\n  \"cancel_deadline_hours\": 0,\n  \"transfer_allowed\": true,\n  \"transfer_deadline_hours\": 0,\n  \"transfer_charge_lesson\": false,\n  \"single_lesson_price_minor\": 100000,\n  \"ending_notice_days\": 3,\n  \"ending_notice_lessons\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "05 — Создать семью с двумя детьми",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{master_cookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{master_csrf}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/master/families",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"parent_full_name\": \"Демо-родитель {{run_id}}\",\n  \"children\": [\n    {\n      \"full_name\": \"Демо-ребёнок А\"\n    },\n    {\n      \"full_name\": \"Демо-ребёнок Б\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code === 201) {",
+                  "const data = pm.response.json();",
+                  "pm.environment.set(\"family_id\", data.id);",
+                  "pm.environment.set(\"child_id\", data.children[0].id);",
+                  "pm.environment.set(\"child2_id\", data.children[1].id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "06 — Выдать ссылку родителю",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{master_cookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{master_csrf}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/master/families/{{family_id}}/access-links",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"expires_at\": \"{{link_expires}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code === 201) {",
+                  "const data = pm.response.json();",
+                  "pm.environment.set(\"access_token\", data.url.split('token=')[1]);",
+                  "pm.environment.set(\"link_id\", data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "07 — Войти родителем без почты и пароля",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/auth/access-link/exchange",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{access_token}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) {",
+                  "const data = pm.response.json();",
+                  "pm.environment.set('parent_csrf',data.csrf_token);",
+                  "const header = pm.response.headers.all().find(h => h.key.toLowerCase()==='set-cookie' && h.value.startsWith('yasna_parent_session='));",
+                  "pm.test('Сессия получена',()=>pm.expect(header).to.exist);",
+                  "if(header) pm.environment.set('parent_cookie',header.value.split(';')[0]);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "08 — Посмотреть двух детей в кабинете",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{parent_cookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{parent_csrf}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/families/me",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) {",
+                  "pm.expect(pm.response.json().children).to.have.lengthOf(2);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "09 — Создать третьего ребёнка в другой семье",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{master_cookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{master_csrf}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/master/families",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"parent_full_name\": \"Другая демо-семья {{run_id}}\",\n  \"children\": [\n    {\n      \"full_name\": \"Демо-ребёнок В\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code === 201) {",
+                  "const data = pm.response.json();",
+                  "pm.environment.set(\"family2_id\", data.id);",
+                  "pm.environment.set(\"child3_id\", data.children[0].id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "10 — Создать тариф на четыре занятия",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{master_cookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{master_csrf}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/master/plans",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Демо 4 занятия\",\n  \"group_id\": \"{{group_id}}\",\n  \"lessons_total\": 4,\n  \"validity_days\": 30,\n  \"price_minor\": 400000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code === 201) {",
+                  "const data = pm.response.json();",
+                  "pm.environment.set(\"plan_id\", data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "11 — Выставить счёт родителю",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{parent_cookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{parent_csrf}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{invoice_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/invoices",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"child_id\": \"{{child_id}}\",\n  \"kind\": \"subscription\",\n  \"plan_id\": \"{{plan_id}}\",\n  \"valid_from\": \"{{today}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code === 201) {",
+                  "const data = pm.response.json();",
+                  "pm.environment.set(\"invoice_id\", data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "12 — Внести оплату наличными (тестовые данные)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{master_cookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{master_csrf}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{cash_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/master/payments",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"invoice_id\": \"{{invoice_id}}\",\n  \"method\": \"cash\",\n  \"comment\": \"Вымышленная оплата для проверки Postman\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code === 201) {",
+                  "const data = pm.response.json();",
+                  "pm.environment.set(\"payment_id\", data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "13 — Повторить оплату с тем же ключом",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{master_cookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{master_csrf}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{cash_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/master/payments",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"invoice_id\": \"{{invoice_id}}\",\n  \"method\": \"cash\",\n  \"comment\": \"Вымышленная оплата для проверки Postman\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code === 201) {",
+                  "pm.expect(pm.response.json().id).to.eql(pm.environment.get('payment_id'));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "14 — Проверить остаток четыре занятия",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{parent_cookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{parent_csrf}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/families/me/subscriptions?child_id={{child_id}}",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) {",
+                  "const data = pm.response.json();",
+                  "pm.environment.set(\"subscription_id\", data.items[0].id);",
+                  "pm.expect(pm.response.json().items).to.have.lengthOf(1); pm.expect(pm.response.json().items[0].lessons_remaining).to.eql(4);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "15 — Создать короткое демо-занятие",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{master_cookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{master_csrf}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/master/lessons",
+            "description": "Для Runner: начало через 30 секунд, длительность 1 секунда. Это вымышленное занятие; правила сервера не обходятся. Для ручного Send установите lesson_delay_seconds=300 до этого запроса.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"group_id\": \"{{group_id}}\",\n  \"starts_at\": \"{{lesson_starts}}\",\n  \"ends_at\": \"{{lesson_ends}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const delay=Number(pm.environment.get('lesson_delay_seconds')||30);",
+                  "if(!Number.isFinite(delay)||delay<10||delay>3600) throw new Error('lesson_delay_seconds должно быть от 10 до 3600');",
+                  "const start=new Date(Date.now()+delay*1000);",
+                  "pm.environment.set('lesson_starts',start.toISOString());",
+                  "pm.environment.set('lesson_ends',new Date(start.getTime()+1000).toISOString());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code === 201) {",
+                  "const data = pm.response.json();",
+                  "pm.environment.set(\"lesson_id\", data.id);",
+                  "pm.environment.set(\"lesson_version\", data.version);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "16 — Записать первого ребёнка",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{parent_cookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{parent_csrf}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{booking_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/bookings",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"lesson_id\": \"{{lesson_id}}\",\n  \"child_id\": \"{{child_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code === 201) {",
+                  "const data = pm.response.json();",
+                  "pm.environment.set(\"booking_id\", data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "17 — Занять второе место",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{parent_cookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{parent_csrf}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{booking2_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/bookings",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"lesson_id\": \"{{lesson_id}}\",\n  \"child_id\": \"{{child2_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "18 — Проверить отказ третьему ребёнку",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{master_cookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{master_csrf}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{booking3_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/bookings",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"lesson_id\": \"{{lesson_id}}\",\n  \"child_id\": \"{{child3_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 409\", () => pm.response.to.have.status(409));",
+                  "if (pm.response.code === 409) {",
+                  "pm.expect(pm.response.json().error.code).to.eql('SEAT_LIMIT_EXCEEDED');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "19 — Проверить повтор записи ребёнка",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{parent_cookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{parent_csrf}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{booking3_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/bookings",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"lesson_id\": \"{{lesson_id}}\",\n  \"child_id\": \"{{child_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 409\", () => pm.response.to.have.status(409));",
+                  "if (pm.response.code === 409) {",
+                  "pm.expect(pm.response.json().error.code).to.eql('DUPLICATE_BOOKING');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "20 — Дождаться занятия и отметить посещение",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{master_cookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{master_csrf}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/master/lessons/{{lesson_id}}/attendance/{{booking_id}}",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"attended\",\n  \"expected_version\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const waitMs=new Date(pm.environment.get('lesson_ends')).getTime()-Date.now()+500;",
+                  "if(waitMs>35000) throw new Error('Занятие ещё не началось. Дождитесь lesson_ends и повторите Send.');",
+                  "if(waitMs>0) setTimeout(()=>{},waitMs);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) {",
+                  "pm.expect(pm.response.json().lessons_remaining).to.eql(3);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "21 — Проверить остаток три занятия",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{parent_cookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{parent_csrf}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/families/me/subscriptions?child_id={{child_id}}",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) {",
+                  "pm.expect(pm.response.json().items[0].lessons_remaining).to.eql(3);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "22 — Проверить денежный баланс отдельно",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{parent_cookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{parent_csrf}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/families/me/balance",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) {",
+                  "pm.expect(pm.response.json().balance_minor).to.eql(0); pm.expect(pm.response.json().debt_minor).to.eql(0);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "23 — Журнал занятия (сохранить запись второго ребёнка)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{master_cookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{master_csrf}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/master/lessons/{{lesson_id}}/bookings",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) {",
+                  "const data = pm.response.json();",
+                  "pm.environment.set(\"booking2_id\", data.items.find(x=>x.child_id===pm.environment.get('child2_id')).id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "24 — Отметить пропуск второго ребёнка без списания",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{master_cookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{master_csrf}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/master/lessons/{{lesson_id}}/attendance/{{booking2_id}}",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"missed\",\n  \"expected_version\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) {",
+                  "pm.expect(pm.response.json().charged).to.eql(false);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "25 — Завершить демо-занятие",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{master_cookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{master_csrf}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/master/lessons/{{lesson_id}}",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"completed\",\n  \"expected_version\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "26 — Проверить историю посещений родителем",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{parent_cookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{parent_csrf}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/families/me/attendance",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) {",
+                  "pm.expect(pm.response.json().items.length).to.be.above(0);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "27 — Выгрузить платежи в CSV",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{master_cookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{master_csrf}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/master/export/payments.csv?from={{today}}&to={{today}}",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) {",
+                  "pm.expect(pm.response.headers.get('Content-Type')).to.include('text/csv'); pm.expect(pm.response.text()).to.include('amount_minor');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 — Проверка прикреплённого чека",
+      "description": "После основного сценария. В первом запросе укажите файл из fixtures либо свой PDF/JPG/PNG до 10 MiB. Затем запускайте папку.",
+      "item": [
+        {
+          "name": "01 — Прикрепить тестовый файл к оплате",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{master_cookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{master_csrf}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/master/payments/{{payment_id}}/receipts",
+            "description": "Выберите fixtures/demo-attachment.png из папки postman. Это техническое тестовое изображение, а не настоящий чек. Для одного платежа прикрепление выполняется один раз.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "fixtures/demo-attachment.png"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code === 201) {",
+                  "const data = pm.response.json();",
+                  "pm.environment.set(\"receipt_id\", data.id);",
+                  "pm.environment.set(\"receipt_version\", data.version);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "02 — Родитель видит сведения о чеке",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{parent_cookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{parent_csrf}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/receipts/{{receipt_id}}",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "03 — Скачать файл родителем",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{parent_cookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{parent_csrf}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/receipts/{{receipt_id}}/download",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) {",
+                  "pm.expect(pm.response.headers.get('Content-Type')).to.include('image/png');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "04 — Без входа файл недоступен",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/receipts/{{receipt_id}}/download",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 — Просмотр и проверки доступа",
+      "item": [
+        {
+          "name": "Уведомления родителя (появляются в течение минуты)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{parent_cookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{parent_csrf}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/notifications",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "Отметить уведомления прочитанными",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{parent_cookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{parent_csrf}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/notifications/read-all",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "История списаний абонемента",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{parent_cookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{parent_csrf}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/subscriptions/{{subscription_id}}/ledger",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "Счета родителя",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{parent_cookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{parent_csrf}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/families/me/invoices",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "Оплаты родителя",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{parent_cookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{parent_csrf}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/families/me/payments",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "Денежные движения",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{parent_cookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{parent_csrf}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/families/me/balance/ledger",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "История исправлений посещаемости",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{master_cookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{master_csrf}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/master/attendance/{{booking_id}}/history",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "Аудит мастера",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{master_cookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{master_csrf}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/master/audit-log",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "Родитель не может открыть список всех семей",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{parent_cookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{parent_csrf}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/master/families",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "Родитель не может посмотреть чужой абонемент",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{parent_cookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{parent_csrf}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/subscriptions/00000000-0000-0000-0000-000000000001/ledger",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 404\", () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 — ЮKassa и СБП (вручную, после настройки)",
+      "description": "Не запускать вместе с основной папкой. Требуется настроенный тестовый магазин и публичный webhook. Создайте новый счёт, получите URL, оплатите в браузере, дождитесь подтверждения и прочитайте статус. Бэкенд проверяет уведомление через API провайдера.",
+      "item": [
+        {
+          "name": "01 — Новый счёт для онлайн-оплаты",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{parent_cookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{parent_csrf}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{online_invoice_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/invoices",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"child_id\": \"{{child_id}}\",\n  \"kind\": \"subscription\",\n  \"plan_id\": \"{{plan_id}}\",\n  \"valid_from\": \"{{today}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code === 201) {",
+                  "const data = pm.response.json();",
+                  "pm.environment.set(\"online_invoice_id\", data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "02 — Получить ссылку оплаты через СБП",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{parent_cookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{parent_csrf}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{online_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/payments/intent",
+            "description": "После успеха откройте payment_url из ответа в браузере и завершите тестовую оплату. При 503 PAYMENT_NOT_CONFIGURED заполните настройки ЮKassa на сервере.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"invoice_id\": \"{{online_invoice_id}}\",\n  \"method\": \"sbp\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code === 201) {",
+                  "const data = pm.response.json();",
+                  "pm.environment.set(\"online_payment_id\", data.id);",
+                  "pm.environment.set(\"payment_url\", data.payment_url);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "03 — Проверить статус оплаты",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{parent_cookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{parent_csrf}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/payments/{{online_payment_id}}",
+            "description": "Повторяйте после оплаты до status=succeeded. Этот запрос не подделывает подтверждение.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) {",
+                  "const data = pm.response.json();",
+                  "pm.environment.set(\"provider_payment_id\", data.provider_payment_id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "04 — Повторить уведомление провайдера",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/webhooks/payments/yookassa",
+            "description": "Только после succeeded. Сервер сам запрашивает статус у ЮKassa; произвольный JSON не зачисляет деньги.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event\": \"payment.succeeded\",\n  \"object\": {\n    \"id\": \"{{provider_payment_id}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "05 — Проверить абонементы после онлайн-оплаты",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{parent_cookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{parent_csrf}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/families/me/subscriptions?child_id={{child_id}}",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 — Отозвать доступ (в самом конце)",
+      "description": "После выполнения родительская сессия перестанет работать. Для нового теста запустите основную папку заново.",
+      "item": [
+        {
+          "name": "01 — Отозвать ссылку семьи",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{master_cookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{master_csrf}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/master/families/{{family_id}}/access-links/{{link_id}}",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 204\", () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "02 — Старой сессии отказано",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              },
+              {
+                "key": "Cookie",
+                "value": "{{parent_cookie}}"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{parent_csrf}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/families/me",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "03 — Старая ссылка больше не действует",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/auth/access-link/exchange",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{access_token}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        }
+      ]
+    }
+  ]
+}
