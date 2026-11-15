@@ -1,0 +1,233 @@
+{{define "content"}}
+{{if .ClosureActive}}
+<div class="alert-banner">
+  <div class="container" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+    <span class="pill pill-full" style="background:#b54337; color:#fff;">Важное объявление</span>
+    <strong>{{.ClosureNotice}}</strong>
+  </div>
+</div>
+{{end}}
+
+<section style="padding-top:32px;">
+  <div class="container">
+    <div class="card" style="background:var(--bg-wood-soft); padding:32px; border-radius:24px;">
+      <div class="grid-2" style="align-items:center; gap:28px;">
+        <div>
+          <span class="pill" style="background:#fff; margin-bottom:12px;">Для детей от 6 до 14 лет • г. Сургут</span>
+          <h1>Учим работать с настоящим деревом и инструментом</h1>
+          <p style="color:var(--text-muted); margin-bottom:20px;">
+            Камерная столярная мастерская: занятия проходят ежедневно в трёх сменах (10:00–12:00, 13:00–15:00, 16:00–18:00) в одной мини-группе под присмотром мастера.
+          </p>
+          <div style="display:flex; flex-wrap:wrap; gap:10px;">
+            <a href="#schedule" class="btn btn-primary">Выбрать дату и время</a>
+            <a href="https://vk.ru/club226704922" target="_blank" rel="noreferrer" class="btn btn-outline">Группа ВКонтакте</a>
+          </div>
+        </div>
+        <div class="card" style="padding:12px; overflow:hidden; background:#fff;">
+          <img
+            src="{{.HeroImageURL}}"
+            alt="Столярный верстак и инструменты в мастерской"
+            style="width:100%; height:265px; object-fit:cover; border-radius:12px; display:block; background:#e7d3b8;"
+          />
+          <p style="text-align:center; font-size:12px; color:var(--text-muted); margin-top:8px;">
+            Натуральное дерево, безопасный инструмент и готовое изделие за 1 урок
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="formats">
+  <div class="container">
+    <div class="section-tag">Тарифы</div>
+    <h2>Форматы и стоимость</h2>
+    <div class="grid-3" style="margin-top:16px;">
+      {{if .FreeTrialEnabled}}
+      <div class="card" style="border:2px solid var(--brown-main); background:#fffdf9;">
+        <div class="section-tag" style="color:var(--brown-main);">Для новичков</div>
+        <h3>Пробный мастер-класс</h3>
+        <div style="font-size:25px; font-weight:800; color:var(--green-main); margin:8px 0;">Бесплатно <span style="font-size:13px; font-weight:400; color:var(--text-muted);">(1-е занятие)</span></div>
+        <p style="font-size:14px; color:var(--text-muted); margin-bottom:14px;">Знакомство с мастерской и инструментом. Ребёнок соберёт своё первое изделие.</p>
+        <a href="#schedule" class="btn btn-brown btn-sm">Записаться бесплатно</a>
+      </div>
+      {{else}}
+      <div class="card">
+        <div class="section-tag">Знакомство</div>
+        <h3>Разовое занятие</h3>
+        <div style="font-size:25px; font-weight:800; color:var(--brown-dark); margin:8px 0;">900 ₽</div>
+        <p style="font-size:14px; color:var(--text-muted); margin-bottom:14px;">Длительность 2 часа (120 мин). Все заготовки и материалы включены.</p>
+        <a href="#schedule" class="btn btn-outline btn-sm">Выбрать время</a>
+      </div>
+      {{end}}
+      <div class="card" style="border:2px solid var(--green-main);">
+        <div class="section-tag" style="color:var(--green-main);">Выгодно</div>
+        <h3>Абонемент на 4 занятия</h3>
+        <div style="font-size:25px; font-weight:800; color:var(--brown-dark); margin:8px 0;">3 200 ₽ <span style="font-size:13px; font-weight:400;">(800 ₽/урок)</span></div>
+        <p style="font-size:14px; color:var(--text-muted); margin-bottom:14px;">Срок действия {{.SubDays}} дней. Учёт остатка, оплата по СБП и чек в личном кабинете.</p>
+        <a href="#schedule" class="btn btn-primary btn-sm">Записаться</a>
+      </div>
+      <div class="card">
+        <div class="section-tag">Разово</div>
+        <h3>Разовое посещение</h3>
+        <div style="font-size:25px; font-weight:800; color:var(--brown-dark); margin:8px 0;">900 ₽</div>
+        <p style="font-size:14px; color:var(--text-muted); margin-bottom:14px;">Полноценное занятие в группе без покупки абонемента. Все материалы включены.</p>
+        <a href="#schedule" class="btn btn-outline btn-sm">Записаться</a>
+      </div>
+    </div>
+  </div>
+</section>
+<section id="schedule">
+  <div class="container">
+    <div class="section-tag">Онлайн-запись</div>
+    <h2>Интерактивный выбор даты и времени занятия</h2>
+    <p style="font-size:14px; color:var(--text-muted); margin-bottom:18px;">
+      Мастерская работает ежедневно в три смены: <strong>10:00–12:00</strong>, <strong>13:00–15:00</strong> и <strong>16:00–18:00</strong>. Выберите удобный день и время.
+    </p>
+
+    {{if .FlashMessage}}<div class="alert-ok">{{.FlashMessage}}</div>{{end}}
+    {{if .ErrorMessage}}<div class="alert-err">{{.ErrorMessage}}</div>{{end}}
+
+    {{if and .ClosureActive .PauseBooking}}
+    <div class="card" style="background:#fdf2f0; border-color:#e6a9a2; color:#7d251c; padding:24px;">
+      <h3>Онлайн-запись временно приостановлена</h3>
+      <p style="font-size:14px; margin-top:6px;">{{.ClosureNotice}}</p>
+    </div>
+    {{else}}
+    <div class="card">
+      <form action="/book" method="POST" id="booking-form">
+        <div class="grid-2" style="margin-bottom:16px;">
+          <div class="form-group" style="margin-bottom:0;">
+            <label for="booking-date">1. Выберите дату занятия</label>
+            <input type="date" id="booking-date" name="date" value="{{.DefaultDate}}" min="{{.DefaultDate}}" required onchange="updateSlotsUI()" />
+          </div>
+          <div>
+            <label style="display:block; font-size:13px; font-weight:600; margin-bottom:5px; color:var(--brown-dark);">2. Выберите смену (время)</label>
+            <div class="grid-3" id="slots-container" style="gap:10px;">
+              <label class="slot-card" id="card-10:00-12:00">
+                <div style="display:flex; align-items:center; gap:6px;"><input type="radio" name="time_slot" value="10:00-12:00" id="radio-10:00-12:00" required /><strong>10:00–12:00</strong></div>
+                <span class="pill pill-green" id="badge-10:00-12:00" style="font-size:11px;">Загрузка...</span>
+              </label>
+              <label class="slot-card" id="card-13:00-15:00">
+                <div style="display:flex; align-items:center; gap:6px;"><input type="radio" name="time_slot" value="13:00-15:00" id="radio-13:00-15:00" required /><strong>13:00–15:00</strong></div>
+                <span class="pill pill-green" id="badge-13:00-15:00" style="font-size:11px;">Загрузка...</span>
+              </label>
+              <label class="slot-card" id="card-16:00-18:00">
+                <div style="display:flex; align-items:center; gap:6px;"><input type="radio" name="time_slot" value="16:00-18:00" id="radio-16:00-18:00" required /><strong>16:00–18:00</strong></div>
+                <span class="pill pill-green" id="badge-16:00-18:00" style="font-size:11px;">Загрузка...</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div style="border-top:1px solid var(--border); padding-top:16px; margin-top:8px;">
+          <label style="display:block; font-size:13px; font-weight:600; margin-bottom:8px; color:var(--brown-dark);">3. Данные родителя (для входа в кабинет по SMS/Email) и детей</label>
+          <div style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:10px;">
+            <input type="text" name="parent_name" required placeholder="Имя родителя" style="flex:1; min-width:160px; padding:9px 12px; border:1px solid var(--border); border-radius:9px; font-size:13px;" />
+            <input type="tel" name="phone" required placeholder="Телефон +7 (900) 000-00-00" style="flex:1; min-width:160px; padding:9px 12px; border:1px solid var(--border); border-radius:9px; font-size:13px;" />
+            <input type="email" name="email" placeholder="Email (для входа по почте)" style="flex:1; min-width:160px; padding:9px 12px; border:1px solid var(--border); border-radius:9px; font-size:13px;" />
+          </div>
+
+          <div id="children-list" style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px;">
+            <div class="child-row" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+              <input type="text" name="child_name[]" required placeholder="Имя ребёнка" style="flex:2; min-width:160px; padding:9px 12px; border:1px solid var(--border); border-radius:9px; font-size:13px;" />
+              <input type="number" name="child_age[]" min="5" max="17" required placeholder="Возраст (лет)" style="flex:1; min-width:120px; padding:9px 12px; border:1px solid var(--border); border-radius:9px; font-size:13px;" />
+              <button type="button" onclick="addChildRow()" title="Добавить ещё одного ребёнка" class="btn btn-outline btn-sm" style="font-weight:700; min-width:38px;">+</button>
+            </div>
+          </div>
+
+          {{if .FreeTrialEnabled}}
+          <div style="background:var(--bg-wood-soft); padding:10px 14px; border-radius:10px; margin-bottom:12px;">
+            <label style="font-size:13px; font-weight:600; color:var(--brown-dark); display:flex; align-items:center; gap:8px; cursor:pointer;">
+              <input type="checkbox" name="is_free_trial" value="1" />
+              Записать на первое бесплатное занятие (пробный мастер-класс — 0 ₽)
+            </label>
+          </div>
+          {{end}}
+
+          <div style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:12px;">
+            <label style="font-size:12px; color:var(--text-muted); display:flex; align-items:center; gap:6px;">
+              <input type="checkbox" name="consent" required /> Согласен на обработку персональных данных (<a href="/privacy" style="color:var(--brown-dark);">152-ФЗ</a>)
+            </label>
+            <button type="submit" class="btn btn-primary">Подтвердить запись</button>
+          </div>
+        </div>
+      </form>
+    </div>
+    {{end}}
+  </div>
+</section>
+<section id="contacts">
+  <div class="container">
+    <div class="section-tag">Как нас найти</div>
+    <h2>График работы, адрес в Сургуте и контакты</h2>
+    <div class="grid-2" style="margin-top:18px; align-items:stretch;">
+      <div class="card" style="display:flex; flex-direction:column; justify-content:space-between;">
+        <div>
+          <h3>Столярная мастерская и школа труда «Ясна»</h3>
+          <p style="font-size:15px; margin:12px 0;"><strong>Адрес:</strong> Сургут ХМАО, 30 лет Победы, 21/3</p>
+          <p style="font-size:15px; margin-bottom:12px;"><strong>Телефон:</strong> <a href="tel:+79124120005" style="color:var(--brown-dark); font-weight:600;">+7 (912) 412-00-05</a></p>
+          <div style="background:var(--bg-cream); border:1px solid var(--border); padding:12px 14px; border-radius:12px; margin-bottom:18px;">
+            <p style="font-size:14px; margin-bottom:6px;"><strong>График смен:</strong> {{.WorkHours}}</p>
+            <p style="font-size:14px; color:var(--brown-main);"><strong>Выходные дни:</strong> {{.DaysOff}}</p>
+          </div>
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:10px;">
+          <a href="https://vk.ru/club226704922" target="_blank" rel="noreferrer" class="btn btn-primary">Группа ВКонтакте</a>
+          <a href="https://2gis.ru/surgut/firm/70000001090739228?m=73.423219%2C61.254649%2F16" target="_blank" rel="noreferrer" class="btn btn-outline">Открыть в 2ГИС</a>
+        </div>
+      </div>
+
+      <div class="card" style="padding:12px; overflow:hidden; min-height:290px;">
+        <iframe width="100%" height="290" style="border:0; border-radius:12px; display:block;" loading="lazy" src="https://openstreetmap.org" title="Карта проезда: Сургут ХМАО, 30 лет Победы, 21/3"></iframe>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+const groupCapacity = {{.GroupCapacity}};
+const closedSlots = {{.ClosedSlotsJSON}};
+const bookedCounts = {{.BookedCountsJSON}};
+const slotsList = ["10:00-12:00", "13:00-15:00", "16:00-18:00"];
+
+function updateSlotsUI() {
+  const dateVal = document.getElementById('booking-date').value;
+  let firstAvailable = null;
+  slotsList.forEach(slot => {
+    const key = dateVal + "|" + slot;
+    const isClosed = !!closedSlots[key];
+    const booked = bookedCounts[key] || 0;
+    const free = Math.max(0, groupCapacity - booked);
+    const card = document.getElementById('card-' + slot);
+    const radio = document.getElementById('radio-' + slot);
+    const badge = document.getElementById('badge-' + slot);
+
+    if (isClosed) {
+      card.classList.add('disabled'); radio.disabled = true; radio.checked = false;
+      badge.className = 'pill pill-full'; badge.textContent = 'Закрыто мастером';
+    } else if (free <= 0) {
+      card.classList.add('disabled'); radio.disabled = true; radio.checked = false;
+      badge.className = 'pill pill-full'; badge.textContent = 'Мест нет (0/' + groupCapacity + ')';
+    } else {
+      card.classList.remove('disabled'); radio.disabled = false;
+      badge.className = 'pill pill-green'; badge.textContent = 'Свободно: ' + free + ' из ' + groupCapacity;
+      if (!firstAvailable) firstAvailable = radio;
+    }
+  });
+  const anyChecked = slotsList.some(s => document.getElementById('radio-' + s).checked);
+  if (!anyChecked && firstAvailable) firstAvailable.checked = true;
+}
+
+function addChildRow() {
+  const container = document.getElementById('children-list');
+  if (container.querySelectorAll('.child-row').length >= groupCapacity) { alert('Максимум детей в группе: ' + groupCapacity); return; }
+  const row = document.createElement('div');
+  row.className = 'child-row';
+  row.style.cssText = 'display:flex; gap:8px; align-items:center; flex-wrap:wrap;';
+  row.innerHTML = `<input type="text" name="child_name[]" required placeholder="Имя ещё одного ребёнка" style="flex:2; min-width:160px; padding:9px 12px; border:1px solid var(--border); border-radius:9px; font-size:13px;" /><input type="number" name="child_age[]" min="5" max="17" required placeholder="Возраст (лет)" style="flex:1; min-width:120px; padding:9px 12px; border:1px solid var(--border); border-radius:9px; font-size:13px;" /><button type="button" onclick="this.parentElement.remove()" title="Убрать строку" class="btn btn-outline btn-sm" style="color:var(--danger); border-color:#f0c4c0; min-width:38px;">×</button>`;
+  container.appendChild(row);
+}
+document.addEventListener('DOMContentLoaded', updateSlotsUI);
+</script>
+{{end}}
