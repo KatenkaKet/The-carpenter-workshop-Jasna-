@@ -1,0 +1,28 @@
+{{define "content"}}
+<section><div class="container" style="max-width:480px;"><div class="card">
+  <div class="section-tag">{{if eq .Role "master"}}Защищённый вход мастера{{else}}Единый портал мастерской{{end}}</div>
+  <h2>{{.PageTitle}}</h2>
+  {{if .ErrorMessage}}<div class="alert-err" style="margin-top:12px;">{{.ErrorMessage}}</div>{{end}}
+  {{if eq .Step "verify"}}
+    <div class="alert-ok" style="margin-top:12px;">
+      Одноразовый код отправлен на <strong>{{.Contact}}</strong>.<br/>
+      <span style="font-size:12px;">Демо-код (симуляция SMS/Email): <strong>{{.DemoCode}}</strong></span>
+    </div>
+    <form action="{{if eq .Role "master"}}/master-login{{else}}/parent-login{{end}}" method="POST">
+      <input type="hidden" name="step" value="verify" />
+      <input type="hidden" name="contact" value="{{.Contact}}" />
+      <div class="form-group"><label>Введите 6-значный код</label><input type="text" name="code" required maxlength="6" placeholder="123456" autofocus /></div>
+      <button type="submit" class="btn btn-primary" style="width:100%;">Подтвердить и войти</button>
+    </form>
+  {{else}}
+    <p style="font-size:14px; color:var(--text-muted); margin:10px 0 16px;">
+      {{if eq .Role "master"}}Введите Email (<code>master@yasna.ru</code>) или телефон (<code>+79124120005</code>) для получения кода.{{else}}Введите ваш телефон или Email, указанный при записи.{{end}}
+    </p>
+    <form action="{{if eq .Role "master"}}/master-login{{else}}/parent-login{{end}}" method="POST">
+      <input type="hidden" name="step" value="request" />
+      <div class="form-group"><label>Телефон или Email</label><input type="text" name="contact" required placeholder="{{if eq .Role "master"}}master@yasna.ru{{else}}+7 (912) 000-00-01{{end}}" /></div>
+      <button type="submit" class="btn btn-brown" style="width:100%;">Получить код доступа</button>
+    </form>
+  {{end}}
+</div></div></section>
+{{end}}

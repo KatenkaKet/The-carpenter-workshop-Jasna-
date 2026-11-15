@@ -1,0 +1,125 @@
+{{define "content"}}
+<section><div class="container">
+  <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:20px;">
+    <div><div class="section-tag">Кабинет мастера • База: data.json</div><h1>Управление мастерской «Ясна»</h1></div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <form action="/master/demo-reset" method="POST"><button type="submit" class="btn btn-brown btn-sm">Сценарий приёмки (2 места)</button></form>
+      <a href="/master/export.csv" class="btn btn-primary btn-sm">Выгрузить CSV</a>
+      <form action="/master/logout" method="POST"><button type="submit" class="btn btn-outline btn-sm">Выйти</button></form>
+    </div>
+  </div>
+  {{if .FlashMessage}}<div class="alert-ok">{{.FlashMessage}}</div>{{end}}
+  <div class="grid-2" style="margin-bottom:20px;">
+    <div class="card" style="background:var(--bg-wood-soft);">
+      <h3>Закрытие/открытие смен (10:00–12:00, 13:00–15:00, 16:00–18:00)</h3>
+      <form action="/master/slots/toggle" method="POST" style="display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end; margin-bottom:12px;">
+        <div class="form-group" style="margin-bottom:0; flex:1;"><label>Дата</label><input type="date" name="date" value="{{.DefaultDate}}" required /></div>
+        <div class="form-group" style="margin-bottom:0; flex:1;"><label>Смена</label><select name="time_slot"><option value="10:00-12:00">10:00–12:00</option><option value="13:00-15:00">13:00–15:00</option><option value="16:00-18:00">16:00–18:00</option></select></div>
+        <button type="submit" class="btn btn-brown btn-sm" style="height:38px;">Закрыть / Открыть</button>
+      </form>
+      {{if .ClosedSlotsList}}<div style="font-size:12px;"><strong>Закрытые смены:</strong> {{range .ClosedSlotsList}}<span class="pill pill-full">{{.}}</span> {{end}}</div>{{else}}<p style="font-size:12px; color:var(--green-dark);">Все смены открыты для записи.</p>{{end}}
+    </div>
+    <div class="card">
+      <h3>Оформление сайта (Логотип и фото обложки)</h3>
+      <form action="/master/media/upload" method="POST" enctype="multipart/form-data">
+        <div class="form-group"><label>Логотип в шапку (PNG/JPG)</label><input type="file" name="logo_file" accept="image/*" /></div>
+        <div class="form-group"><label>Фото обложки сайта (PNG/JPG)</label><input type="file" name="hero_file" accept="image/*" /></div>
+        <button type="submit" class="btn btn-primary btn-sm">Загрузить на сайт</button>
+      </form>
+    </div>
+  </div>
+  <div class="grid-2" style="margin-bottom:20px;">
+    <div class="card">
+      <h3>График работы, выходные и объявление</h3>
+      <form action="/master/settings/schedule" method="POST">
+        <div class="form-group"><label>Рабочие смены</label><input type="text" name="work_hours" value="{{.WorkHours}}" required /></div>
+        <div class="form-group"><label>Выходные дни</label><input type="text" name="days_off" value="{{.DaysOff}}" required /></div>
+        <div class="form-group" style="background:var(--bg-cream); padding:10px; border-radius:10px;">
+          <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" name="closure_active" value="1" {{if .ClosureActive}}checked{{end}}/> Показать объявление о закрытии</label>
+          <textarea name="closure_notice" rows="2" style="margin-top:6px;">{{.ClosureNotice}}</textarea>
+          <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin-top:6px; font-weight:400; font-size:12px;"><input type="checkbox" name="pause_booking" value="1" {{if .PauseBooking}}checked{{end}}/> Полностью закрыть онлайн-запись</label>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">Сохранить график и объявление</button>
+      </form>
+    </div>
+    <div class="card" style="display:flex; flex-direction:column; justify-content:space-between;">
+      <div>
+        <h3>Вместимость группы и пробный МК</h3>
+        <form action="/master/settings/capacity" method="POST" style="margin-bottom:14px;">
+          <label style="display:block; font-size:13px; font-weight:600; margin-bottom:4px;">Максимум детей в смене</label>
+          <div style="display:flex; gap:8px;"><input type="number" name="capacity" value="{{.GroupCapacity}}" min="1" max="20" required style="max-width:90px; padding:7px; border:1px solid var(--border); border-radius:8px;"/><button type="submit" class="btn btn-primary btn-sm">Сохранить мест</button></div>
+        </form>
+        <form action="/master/settings/sub-days" method="POST" style="margin-bottom:14px;">
+          <label style="display:block; font-size:13px; font-weight:600; margin-bottom:4px;">Срок действия абонемента (дней)</label>
+          <div style="display:flex; gap:8px;"><input type="number" name="sub_days" value="{{.SubDays}}" min="7" max="365" required style="max-width:90px; padding:7px; border:1px solid var(--border); border-radius:8px;"/><button type="submit" class="btn btn-primary btn-sm">Сохранить срок</button></div>
+        </form>
+        <form action="/master/toggle-free-trial" method="POST">
+          <span style="font-size:13px;">Бесплатный 1-й мастер-класс: <strong>{{if .FreeTrialEnabled}}Включён{{else}}Выключен{{end}}</strong></span>
+          <button type="submit" class="btn btn-outline btn-sm" style="margin-left:8px;">Переключить</button>
+        </form>
+      </div>
+      <p style="font-size:12px; color:var(--text-muted); border-top:1px solid var(--border); padding-top:10px;">Вход мастера защищён 6-значным кодом через Email (<code>master@yasna.ru</code>) или телефон (<code>+79124120005</code>).</p>
+    </div>
+  </div>
+  <div class="card" style="margin-bottom:20px;">
+    <h3>Записанные дети и отметка явки</h3>
+    <table><thead><tr><th>Дата и смена</th><th>Ученик (Семья)</th><th>Формат / Остаток</th><th>Отметка</th></tr></thead><tbody>
+      {{range .Bookings}}
+      <tr>
+        <td><strong>{{.Date}}</strong> <span class="pill">{{.TimeSlot}}</span></td>
+        <td><strong>{{.ChildName}}</strong> ({{.ParentName}})</td>
+        <td>{{if .IsFreeTrial}}<span class="pill pill-green">Пробный МК (0 ₽)</span>{{else}}Абонемент: <strong>{{.LessonsRemaining}} ур.</strong>{{end}}</td>
+        <td>
+          <form action="/master/attendance" method="POST" style="display:inline-flex; gap:6px; flex-wrap:wrap;">
+            <input type="hidden" name="booking_id" value="{{.ID}}"/>
+            <button type="submit" name="status" value="visited" class="btn btn-primary btn-sm">Посетил</button>
+            <button type="submit" name="status" value="missed" class="btn btn-outline btn-sm">Пропустил</button>
+            <button type="submit" name="status" value="canceled" class="btn btn-outline btn-sm">Отмена</button>
+          </form>
+        </td>
+      </tr>
+      {{else}}<tr><td colspan="4" style="color:var(--text-muted);">Активных записей пока нет.</td></tr>{{end}}
+    </tbody></table>
+  </div>
+  <div class="grid-2" style="margin-bottom:20px;">
+    <div class="card">
+      <h3>Ручное внесение оплаты</h3>
+      <form action="/master/payments/manual" method="POST">
+        <div class="form-group"><label>Семья</label><select name="family_id" required>{{range .Families}}<option value="{{.ID}}">{{.ParentName}} ({{.Phone}}) — {{.LessonsRemaining}} ур.</option>{{end}}</select></div>
+        <div class="form-group"><label>Сумма (₽)</label><input type="number" name="amount_rub" value="3200" required /></div>
+        <div class="form-group"><label>Занятий (+)</label><input type="number" name="lessons_add" value="4" required /></div>
+        <div class="form-group"><label>Ссылка на чек («Мой налог»)</label><input type="url" name="receipt_url" placeholder="https://nalog.ru..." /></div>
+        <button type="submit" class="btn btn-primary">Сохранить оплату</button>
+      </form>
+    </div>
+    <div class="card">
+      <h3>Ожидают чек «Мой налог»</h3>
+      <table><thead><tr><th>Плательщик</th><th>Ссылка на чек</th></tr></thead><tbody>
+        {{range .PendingReceipts}}
+        <tr><td><strong>{{.ParentName}}</strong> ({{.AmountRub}} ₽)</td><td>
+          <form action="/master/payments/attach-receipt" method="POST" style="display:flex; gap:6px;"><input type="hidden" name="payment_id" value="{{.ID}}"/><input type="url" name="receipt_url" required placeholder="https://nalog.ru..." style="padding:6px; border:1px solid var(--border); border-radius:8px; font-size:12px; width:100%;"/><button type="submit" class="btn btn-primary btn-sm">ОК</button></form>
+        </td></tr>
+        {{else}}<tr><td colspan="2" style="color:var(--text-muted);">Все платежи закрыты чеками.</td></tr>{{end}}
+      </tbody></table>
+    </div>
+  </div>
+  <div class="card" style="margin-bottom:20px;">
+    <h3>База семей и ссылки в кабинет</h3>
+    <table><thead><tr><th>Родитель и дети</th><th>Остаток</th><th>Кабинет</th><th>Токен</th></tr></thead><tbody>
+      {{range .Families}}
+      <tr>
+        <td><strong>{{.ParentName}}</strong> ({{.Phone}} {{if .Email}}• {{.Email}}{{end}})<br/><span style="font-size:12px; color:var(--text-muted);">Дети: {{range .Children}}{{.Name}} {{end}}</span></td>
+        <td><strong>{{.LessonsRemaining}} ур.</strong></td>
+        <td style="display:flex; gap:6px;"><a href="/cabinet/{{.Token}}" target="_blank" class="btn btn-outline btn-sm">Открыть</a><button type="button" onclick="copyCabinetLink('/cabinet/{{.Token}}', this)" class="btn btn-outline btn-sm">Копировать</button></td>
+        <td><form action="/master/families/{{.ID}}/revoke-token" method="POST"><button type="submit" class="btn btn-outline btn-sm">Сбросить</button></form></td>
+      </tr>
+      {{end}}
+    </tbody></table>
+  </div>
+  <div class="card">
+    <h3>Аудит-лог событий (сохраняется в data.json)</h3>
+    <ul style="padding-left:18px; font-size:13px;">{{range .AuditLogs}}<li><strong>{{.Time}}</strong> — {{.Message}}</li>{{end}}</ul>
+  </div>
+</div></section>
+<script>function copyCabinetLink(p,b){navigator.clipboard.writeText(window.location.origin+p).then(()=>{const o=b.textContent;b.textContent='Готово!';setTimeout(()=>b.textContent=o,1500);});}</script>
+{{end}}

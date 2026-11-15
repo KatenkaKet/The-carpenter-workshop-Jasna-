@@ -1,0 +1,98 @@
+{{define "layout"}}<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{.PageTitle}} — Столярная мастерская «Ясна» (Сургут ХМАО)</title>
+  {{if .NoIndex}}<meta name="robots" content="noindex, nofollow" />{{end}}
+  <style>
+    :root {
+      --bg-cream: #faf6f0; --bg-card: #ffffff; --bg-wood-soft: #f3e8d8;
+      --brown-dark: #3d2413; --brown-main: #9c6132; --green-main: #2d5a43;
+      --green-dark: #214432; --text-main: #2d2a26; --text-muted: #6e665e;
+      --border: #e5d8c5; --danger: #b54337; --radius: 16px;
+      --shadow: 0 6px 20px rgba(61, 36, 19, 0.06);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; background: var(--bg-cream); color: var(--text-main); line-height: 1.55; }
+    .container { max-width: 1120px; margin: 0 auto; padding: 0 20px; }
+    header { position: sticky; top: 0; z-index: 100; background: rgba(250, 246, 240, 0.96); backdrop-filter: blur(8px); border-bottom: 1px solid var(--border); }
+    .nav-wrap { display: flex; align-items: center; justify-content: space-between; min-height: 70px; padding: 8px 0; gap: 12px; flex-wrap: wrap; }
+    .brand { text-decoration: none; color: var(--brown-dark); display: flex; align-items: center; gap: 12px; }
+    .brand-logo { height: 42px; width: 42px; object-fit: cover; border-radius: 10px; border: 1px solid var(--border); background: #fff; }
+    .brand-title { font-size: 19px; font-weight: 800; line-height: 1.1; display: block; }
+    .brand-sub { font-size: 12px; color: var(--text-muted); display: block; }
+    .portal-tabs { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; padding: 9px 16px; border-radius: 11px; font-size: 13px; font-weight: 600; text-decoration: none; cursor: pointer; border: none; transition: 0.2s; }
+    .btn-primary { background: var(--green-main); color: #fff; }
+    .btn-primary:hover { background: var(--green-dark); }
+    .btn-outline { background: var(--bg-card); color: var(--brown-dark); border: 1px solid var(--border); }
+    .btn-outline:hover { background: var(--bg-wood-soft); }
+    .btn-brown { background: var(--brown-main); color: #fff; }
+    .btn-sm { padding: 7px 12px; font-size: 12px; border-radius: 9px; }
+    section { padding: 30px 0; }
+    h1 { font-size: 32px; line-height: 1.15; color: var(--brown-dark); margin-bottom: 12px; }
+    h2 { font-size: 25px; color: var(--brown-dark); margin-bottom: 8px; }
+    h3 { font-size: 18px; color: var(--brown-dark); margin-bottom: 8px; }
+    .section-tag { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--brown-main); margin-bottom: 4px; }
+    .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; box-shadow: var(--shadow); }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+    .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; }
+    .pill { display: inline-block; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 8px; background: var(--bg-wood-soft); color: var(--brown-dark); }
+    .pill-green { background: #e3f0e8; color: var(--green-dark); }
+    .pill-full { background: #f8e4e2; color: var(--danger); }
+    .alert-banner { background: #fdf2f0; border-bottom: 2px solid #e6a9a2; color: #7d251c; padding: 12px 0; font-size: 14px; }
+    .alert-ok { background: #e3f0e8; border: 1px solid #b7d8c4; color: var(--green-dark); padding: 14px 16px; border-radius: 12px; margin-bottom: 16px; font-size: 14px; }
+    .alert-err { background: #fdf2f0; border: 1px solid #e6a9a2; color: #7d251c; padding: 14px 16px; border-radius: 12px; margin-bottom: 16px; font-size: 14px; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { text-align: left; padding: 11px 10px; border-bottom: 1px solid var(--border); }
+    th { font-size: 12px; text-transform: uppercase; color: var(--text-muted); }
+    .form-group { margin-bottom: 13px; }
+    .form-group label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px; color: var(--brown-dark); }
+    .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: 10px; font-size: 14px; background: var(--bg-cream); font-family: inherit; }
+    .slot-card { border: 2px solid var(--border); border-radius: 12px; padding: 12px 14px; cursor: pointer; background: #fff; transition: 0.15s; display: flex; flex-direction: column; gap: 4px; }
+    .slot-card:hover { border-color: var(--brown-main); background: #fffdf9; }
+    .slot-card.disabled { opacity: 0.55; cursor: not-allowed; background: #f5f2ed; }
+    footer { border-top: 1px solid var(--border); padding: 30px 0; margin-top: 32px; font-size: 13px; color: var(--text-muted); }
+    .footer-flex { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
+    .footer-links { display: flex; gap: 16px; flex-wrap: wrap; }
+    .footer-links a { color: var(--brown-dark); text-decoration: underline; }
+    @media (max-width: 840px) { .grid-3, .grid-2 { grid-template-columns: 1fr; } h1 { font-size: 26px; } }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container nav-wrap">
+      <a href="/" class="brand">
+        {{if .LogoURL}}<img src="{{.LogoURL}}" alt="Логотип Ясна" class="brand-logo" />{{end}}
+        <div>
+          <span class="brand-title">Столярная мастерская «Ясна»</span>
+          <span class="brand-sub">Школа труда • Сургут ХМАО, 30 лет Победы, 21/3</span>
+        </div>
+      </a>
+      <div class="portal-tabs">
+        <a href="/" class="btn btn-outline btn-sm">Главная</a>
+        <a href="/#schedule" class="btn btn-primary btn-sm">Записаться</a>
+        <a href="/parent-login" class="btn btn-outline btn-sm">Кабинет родителя</a>
+        <a href="/master" class="btn btn-brown btn-sm">Кабинет мастера</a>
+      </div>
+    </div>
+  </header>
+  <main>{{template "content" .}}</main>
+  <footer>
+    <div class="container footer-flex">
+      <div>
+        <strong>Столярная мастерская и школа труда «Ясна»</strong><br />
+        Сургут ХМАО, 30 лет Победы, 21/3 • Тел.: +7 (912) 412-00-05<br />
+        Чеки формируются в приложении ФНС «Мой налог»
+      </div>
+      <div class="footer-links">
+        <a href="https://vk.ru" target="_blank" rel="noreferrer">Группа ВКонтакте</a>
+        <a href="/privacy">Политика конфиденциальности (152-ФЗ)</a>
+        <a href="/offer">Публичная оферта</a>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>{{end}}
