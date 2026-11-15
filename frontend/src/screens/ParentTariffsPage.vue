@@ -121,9 +121,7 @@
           </div>
           <h3 class="mt-2 font-display text-lg font-semibold leading-tight">
             {{ tariff.title
-            }}<span class="block text-xs font-sans mt-2 text-muted">{{
-              tariff.groupName
-            }}</span>
+            }}
           </h3>
           <p class="mt-1 text-[11px] leading-relaxed text-muted">
             {{ tariff.lessons }}

@@ -351,10 +351,11 @@
     </BottomSheet>
 
     <AppToast :message="toastMessage" />
-  </AppShell>
+  <CsvExport/></AppShell>
 </template>
 
 <script setup lang="ts">
+import CsvExport from "../components/CsvExport.vue";
 import { computed, reactive, ref } from "vue";
 import {api,all} from "../shared/api";
 import {issuedLinks} from "../shared/use-demo";

@@ -208,7 +208,7 @@ func invoices(r *R) (any, error) {
 	return r.list(invoiceSQL+` WHERE ($1='' OR i.family_id::text=$1) AND ($2='' OR i.child_id::text=$2) AND ($3='' OR i.status=$3) ORDER BY i.created_at,i.id`, family, r.C.Query("child_id"), r.C.Query("status"))
 }
 
-const subSQL = `SELECT s.*,(SELECT count(*) FROM subscription_reservations x WHERE x.subscription_id=s.id AND x.status='reserved')::integer lessons_reserved,CASE WHEN s.suspended_at IS NOT NULL OR s.valid_until<(now() AT TIME ZONE 'Asia/Yekaterinburg')::date THEN 0 ELSE greatest(0,s.lessons_remaining-(SELECT count(*) FROM subscription_reservations x WHERE x.subscription_id=s.id AND x.status='reserved')) END::integer lessons_available,coalesce((SELECT -sum(delta) FROM subscription_ledger WHERE subscription_id=s.id AND reason IN ('attendance_charge','attendance_reversal')),0)::integer lessons_used,coalesce((SELECT sum(delta) FROM subscription_ledger WHERE subscription_id=s.id AND reason='manual_adjustment'),0)::integer adjustments_total,CASE WHEN suspended_at IS NOT NULL THEN 'suspended' WHEN lessons_remaining=0 THEN 'exhausted' WHEN valid_until<(now() AT TIME ZONE 'Asia/Yekaterinburg')::date THEN 'expired' WHEN valid_from>(now() AT TIME ZONE 'Asia/Yekaterinburg')::date THEN 'scheduled' ELSE 'active' END status FROM subscriptions s`
+const subSQL = `SELECT s.*,(SELECT i.plan_snapshot->>'title' FROM invoices i WHERE i.id=s.invoice_id) plan_title,(SELECT count(*) FROM subscription_reservations x WHERE x.subscription_id=s.id AND x.status='reserved')::integer lessons_reserved,CASE WHEN s.suspended_at IS NOT NULL OR s.valid_until<(now() AT TIME ZONE 'Asia/Yekaterinburg')::date THEN 0 ELSE greatest(0,s.lessons_remaining-(SELECT count(*) FROM subscription_reservations x WHERE x.subscription_id=s.id AND x.status='reserved')) END::integer lessons_available,coalesce((SELECT -sum(delta) FROM subscription_ledger WHERE subscription_id=s.id AND reason IN ('attendance_charge','attendance_reversal')),0)::integer lessons_used,coalesce((SELECT sum(delta) FROM subscription_ledger WHERE subscription_id=s.id AND reason='manual_adjustment'),0)::integer adjustments_total,CASE WHEN suspended_at IS NOT NULL THEN 'suspended' WHEN lessons_remaining=0 THEN 'exhausted' WHEN valid_until<(now() AT TIME ZONE 'Asia/Yekaterinburg')::date THEN 'expired' WHEN valid_from>(now() AT TIME ZONE 'Asia/Yekaterinburg')::date THEN 'scheduled' ELSE 'active' END status FROM subscriptions s`
 
 func subscriptions(r *R) (any, error) {
 	family, child := "", r.C.Query("child_id")
@@ -387,6 +387,11 @@ func (r *R) credit(p M, paidAt string) (M, error) {
 			if _, e = r.insert("subscription_ledger", M{"subscription_id": s["id"], "delta": plan["lessons_total"], "reason": "subscription_purchase", "payment_id": p["id"], "created_by": nullable(str(r.User, "user_id"))}); e != nil {
 				return nil, e
 			}
+		}
+	}
+	if str(inv, "kind") == "subscription" {
+		if e = r.reserveAwaiting(str(inv, "child_id")); e != nil {
+			return nil, e
 		}
 	}
 	if e = r.exec("UPDATE notifications SET read_at=coalesce(read_at,now()) WHERE type='payment.required' AND payload->>'invoice_id'=$1", str(inv, "id")); e != nil {

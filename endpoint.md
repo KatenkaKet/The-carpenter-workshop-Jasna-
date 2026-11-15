@@ -1,6 +1,24 @@
 # REST API — Система записи и учёта занятий «Ясна»
 
-Версия: 1.1, контракт от 2026-11-14. Обязательные маршруты реализованы в Go + Gin.
+## Дополнения: рабочий сценарий, общие тарифы и CSV
+
+- `GET /public/payment-options` → `{test_enabled: boolean}`.
+- `POST /payments/test-confirm` → тело `{invoice_id}`, обязательны CSRF и `Idempotency-Key`, роль родитель/мастер. Только `APP_ENV=development` и `PAYMENT_STUB=true`. Возвращает успешный платёж `method=test`, HTTP 201. Повтор того же ключа возвращает исходный результат, новый ключ для оплаченного счёта даёт 409. В выключенном режиме — 404.
+- `GET /master/booking-policy` → общие правила и `version` (0 до первого сохранения).
+- `PUT /master/booking-policy` → `{expected_version, missed_charge_lesson, free_cancel_before_hours, transfer_allowed}`. Часы — целое 0–8760. Глобальная настройка действует сразу для следующих операций; имеет приоритет над старыми настройками групп. Старые групповые endpoints сохранены для совместимости.
+- `POST /master/plans`: `group_id` теперь необязателен. Без него тариф универсален; UI не предлагает группы. Старые оплаченные абонементы сохраняют область действия.
+- `POST /bookings`: `funding_kind=subscription|single_lesson|awaiting_payment|legacy`. `awaiting_payment` допускает предварительную запись ребёнка без прежнего подходящего абонемента. После подтверждения покупки доступные занятия распределяются по таким записям хронологически в одной транзакции. `single_lesson` остаётся отдельной оплатой.
+- Списки абонементов возвращают `plan_title`, `lessons_reserved`, `lessons_used`, `lessons_available`, `adjustments_total` и статус `suspended` при аннулировании. `lessons_remaining` — неиспользованный остаток, включая резерв.
+- `POST /master/subscription-purchases`: `{child_id, plan_id, valid_from, method: cash|transfer, comment?}`, CSRF + Idempotency-Key. Счёт, успешная оплата, абонемент и покрытие записей создаются атомарно.
+- `GET /bookings/:id/cancellation`: `allowed`, `free_cancel_until`, `will_charge`, `timezone`, `server_time`, реальные правила. Окончательное списание решается сервером при DELETE.
+- `POST /master/payments/:id/void`: `{expected_version, reason}`, CSRF + Idempotency-Key. Поддерживает cash/transfer/test, сохраняет историю и использованные занятия; внешний платёж требует возврата у провайдера.
+- `DELETE /master/receipts/:id`: `{expected_version, reason}`, CSRF. Чек закрывается для доступа, история сохраняется.
+- `GET /master/export/children.csv`, `attendance.csv`, `payments.csv`, `all.zip`: период теперь необязателен, без него выгружается вся история. Только мастер.
+
+Эти дополнения имеют приоритет над прежними примерами ниже. [Сценарий проверки и ограничения](docs/demo-and-export.md).
+
+
+Версия: 1.2, дополнения от 2026-11-15. Обязательные маршруты реализованы в Go + Gin.
 Инструкции запуска, проверки и ограничения: [backend/README.md](backend/README.md).
 
 Уточнения реализации: изменения сериализуются общей транзакционной блокировкой PostgreSQL;

@@ -32,9 +32,9 @@
         </span>
       </div>
 
-<label class="label">Способ учёта<select class="field" v-model="funding"><option value="subscription">Абонемент — доступно {{available}}</option><option value="single_lesson">Разовое занятие, отдельная оплата</option></select></label>
+<label class="label">Способ учёта<select class="field" v-model="funding"><option value="subscription">Абонемент — доступно {{available}}</option><option v-if="!hasSubscription" value="awaiting_payment">Записаться, затем оплатить абонемент</option><option value="single_lesson">Разовое занятие, отдельная оплата</option></select></label>
       <p class="text-sm text-muted">
-        При выборе абонемента одно занятие резервируется. Разовое занятие оплачивается отдельно по правилам группы.
+        При выборе абонемента одно занятие резервируется. При записи до покупки резерв будет выделен после оплаты абонемента. Разовое занятие оплачивается отдельно.
       </p>
       <p
         v-if="error"
@@ -91,7 +91,8 @@ const emit = defineEmits<{ close: []; booked: [] }>();
 const { state, childById, subscriptionFor, createBooking } = useDemo();
 
 const funding=ref("subscription");
-const available=computed(()=>serverSubscriptions.value.filter(s=>s.child_id===props.childId&&s.group_id===props.lesson?.groupId&&s.valid_from.slice(0,10)<=(props.lesson?.date||'')&&s.valid_until.slice(0,10)>=(props.lesson?.date||'')&&s.status!=="suspended").reduce((n,s)=>n+s.lessons_available,0));
+const available=computed(()=>serverSubscriptions.value.filter(s=>s.child_id===props.childId&&(!s.group_id||s.group_id===props.lesson?.groupId)&&s.valid_from.slice(0,10)<=(props.lesson?.date||'')&&s.valid_until.slice(0,10)>=(props.lesson?.date||'')&&s.status!=="suspended").reduce((n,s)=>n+s.lessons_available,0));
+const hasSubscription=computed(()=>serverSubscriptions.value.some(s=>s.child_id===props.childId&&(!s.group_id||s.group_id===props.lesson?.groupId)));
 const tariffId = ref("t1");
 const busy = ref(false);
 const error = ref("");
@@ -150,6 +151,7 @@ watch(
   () => props.open,
   (open) => {
     if (!open) return;
+    funding.value=hasSubscription.value?"subscription":"awaiting_payment";
     tariffId.value = state.settings.tariffs[0]?.id || "";
     busy.value = false;
     error.value = "";

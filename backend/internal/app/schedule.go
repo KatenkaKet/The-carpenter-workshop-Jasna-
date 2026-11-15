@@ -268,7 +268,7 @@ func (r *R) book(lessonID, childID string) (M, error) {
 		return nil, e
 	}
 	kind := valueOr(str(r.Body, "funding_kind"), "legacy")
-	if !contains([]string{"legacy", "subscription", "single_lesson"}, kind) {
+	if !contains([]string{"legacy", "subscription", "single_lesson", "awaiting_payment"}, kind) {
 		return nil, invalid("FUNDING_KIND")
 	}
 	if _, e = r.update("bookings", str(b, "id"), M{"funding_kind": kind}); e != nil {
@@ -528,7 +528,7 @@ func (r *R) mark(b, l M, status, reason, comment string) (M, error) {
 					return nil, err
 				}
 				day := at(l, "starts_at").In(zone).Format("2006-01-02")
-				sub, err := one(r.ctx(), r.DB, `SELECT s.* FROM subscriptions s LEFT JOIN subscription_reservations own ON own.subscription_id=s.id AND own.booking_id=$4 WHERE s.child_id=$1 AND s.group_id=$2 AND s.valid_from<=$3::date AND s.valid_until>=$3::date AND (s.suspended_at IS NULL OR own.status='reserved') AND s.lessons_remaining>(SELECT count(*) FROM subscription_reservations x WHERE x.subscription_id=s.id AND x.status='reserved' AND x.booking_id<>$4) ORDER BY (own.id IS NOT NULL) DESC,s.valid_until,s.id LIMIT 1`, b["child_id"], l["group_id"], day, b["id"])
+				sub, err := one(r.ctx(), r.DB, `SELECT s.* FROM subscriptions s LEFT JOIN subscription_reservations own ON own.subscription_id=s.id AND own.booking_id=$4 WHERE s.child_id=$1 AND (s.group_id=$2 OR s.group_id IS NULL) AND s.valid_from<=$3::date AND s.valid_until>=$3::date AND (s.suspended_at IS NULL OR own.status='reserved') AND s.lessons_remaining>(SELECT count(*) FROM subscription_reservations x WHERE x.subscription_id=s.id AND x.status='reserved' AND x.booking_id<>$4) ORDER BY (own.id IS NOT NULL) DESC,s.valid_until,s.id LIMIT 1`, b["child_id"], l["group_id"], day, b["id"])
 				if err == nil && str(b, "funding_kind") != "single_lesson" {
 					entry, e := r.insert("subscription_ledger", M{"subscription_id": sub["id"], "delta": -1, "reason": "attendance_charge", "attendance_id": old["id"], "created_by": r.User["user_id"], "comment": comment})
 					if e != nil {

@@ -279,10 +279,11 @@
     </p>
 
     <AppToast :message="toastMessage" />
-  </AppShell>
+  <CsvExport/></AppShell>
 </template>
 
 <script setup lang="ts">
+import CsvExport from "../components/CsvExport.vue";
 import { computed, ref, watch } from "vue";
 import AppShell from "../components/AppShell.vue";
 import AppToast from "../components/AppToast.vue";

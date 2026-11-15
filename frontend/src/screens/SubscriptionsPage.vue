@@ -248,7 +248,7 @@
     </template>
 
     <template v-else>
-      <TariffCreator/><GroupEditor/>
+      <TariffCreator/>
       <section class="card mt-4 p-4 sm:p-5" aria-labelledby="tariffs-title">
         <div class="flex items-start justify-between gap-3">
           <div>
@@ -292,13 +292,6 @@
       </section>
 
       <section class="card mt-4 p-4 sm:p-5" aria-labelledby="rules-title">
-        <label class="label"
-          >Группа<select v-model="ruleGroup" class="input">
-            <option v-for="g in groups()" :value="g.id" :key="g.id">
-              {{ g.title }}
-            </option>
-          </select></label
-        >
         <p class="text-xs">
           Настройки применяются сразу к следующим отменам, переносам и отметкам. Прошлые операции не пересчитываются.
         </p>
@@ -632,7 +625,7 @@
 
 <script setup lang="ts">
 import TariffCreator from "../components/TariffCreator.vue";
-import GroupEditor from "../components/GroupEditor.vue";
+
 import SubscriptionBalances from "../components/SubscriptionBalances.vue";
 import { computed, reactive, ref } from "vue";
 import AppShell from "../components/AppShell.vue";

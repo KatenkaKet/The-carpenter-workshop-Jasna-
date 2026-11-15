@@ -363,10 +363,11 @@
     <AppToast :message="toastMessage" />
     <InvoicesPanel />
   <PaymentCorrections/>
-</AppShell>
+<CsvExport/></AppShell>
 </template>
 
 <script setup lang="ts">
+import CsvExport from "../components/CsvExport.vue";
 import PaymentCorrections from "../components/PaymentCorrections.vue";
 import InvoicesPanel from "../components/InvoicesPanel.vue";
 import { computed, ref } from "vue";

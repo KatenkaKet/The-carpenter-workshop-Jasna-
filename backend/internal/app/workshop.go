@@ -8,13 +8,13 @@ func (r *R) reserve(b, l M, kind string) error {
 		return nil
 	}
 	day := at(l, "starts_at").In(zone).Format("2006-01-02")
-	s, e := one(r.ctx(), r.DB, `SELECT s.* FROM subscriptions s WHERE child_id=$1 AND group_id=$2 AND valid_from<=$3::date AND valid_until>=$3::date AND suspended_at IS NULL AND lessons_remaining>(SELECT count(*) FROM subscription_reservations x WHERE x.subscription_id=s.id AND x.status='reserved') ORDER BY valid_until,id LIMIT 1`, b["child_id"], l["group_id"], day)
+	s, e := one(r.ctx(), r.DB, `SELECT s.* FROM subscriptions s WHERE child_id=$1 AND (group_id=$2 OR group_id IS NULL) AND valid_from<=$3::date AND valid_until>=$3::date AND suspended_at IS NULL AND lessons_remaining>(SELECT count(*) FROM subscription_reservations x WHERE x.subscription_id=s.id AND x.status='reserved') ORDER BY valid_until,id LIMIT 1`, b["child_id"], l["group_id"], day)
 	if e != nil {
 		if ae, ok := e.(*APIError); !ok || ae.Status != 404 {
 			return e
 		}
 		var exists bool
-		if e = r.DB.QueryRow(r.ctx(), `SELECT EXISTS(SELECT 1 FROM subscriptions WHERE child_id=$1 AND group_id=$2)`, b["child_id"], l["group_id"]).Scan(&exists); e != nil {
+		if e = r.DB.QueryRow(r.ctx(), `SELECT EXISTS(SELECT 1 FROM subscriptions WHERE child_id=$1 AND (group_id=$2 OR group_id IS NULL))`, b["child_id"], l["group_id"]).Scan(&exists); e != nil {
 			return e
 		}
 		if kind == "subscription" || exists {
@@ -31,7 +31,7 @@ func (r *R) reserve(b, l M, kind string) error {
 
 func (r *R) effectiveRule(b M) (M, error) {
 	rule := clone(object(b["rule_snapshot"]))
-	p, e := one(r.ctx(), r.DB, `SELECT p.* FROM group_policies p JOIN lessons l ON l.group_id=p.group_id WHERE l.id=$1`, b["lesson_id"])
+	p, e := one(r.ctx(), r.DB, `SELECT p.* FROM group_policies p JOIN lessons l ON (l.group_id=p.group_id OR p.group_id IS NULL) WHERE l.id=$1 ORDER BY p.group_id NULLS FIRST LIMIT 1`, b["lesson_id"])
 	if e != nil {
 		if ae, ok := e.(*APIError); ok && ae.Status == 404 {
 			return rule, nil
@@ -48,11 +48,13 @@ func (r *R) effectiveRule(b M) (M, error) {
 }
 func groupPolicy(r *R) (any, error) {
 	id := r.C.Param("id")
-	if _, e := r.get("groups", id); e != nil {
-		return nil, e
+	if id != "" {
+		if _, e := r.get("groups", id); e != nil {
+			return nil, e
+		}
 	}
 	if r.C.Request.Method == "GET" {
-		p, e := one(r.ctx(), r.DB, "SELECT * FROM group_policies WHERE group_id=$1", id)
+		p, e := one(r.ctx(), r.DB, "SELECT * FROM group_policies WHERE group_id IS NOT DISTINCT FROM $1::uuid", nullable(id))
 		if e == nil {
 			return p, nil
 		}
@@ -60,6 +62,10 @@ func groupPolicy(r *R) (any, error) {
 			return nil, e
 		}
 		rule, e := r.rule(id, r.now().In(zone).Format("2006-01-02"))
+		if ae, ok := e.(*APIError); id == "" && ok && ae.Code == "RULES_NOT_CONFIGURED" {
+			rule = M{"missed_charge_lesson": true, "free_cancel_before_hours": 3, "transfer_allowed": true}
+			e = nil
+		}
 		if e != nil {
 			return nil, e
 		}
@@ -79,7 +85,7 @@ func groupPolicy(r *R) (any, error) {
 	if e := integer(r.Body, "free_cancel_before_hours", 0, 8760); e != nil {
 		return nil, e
 	}
-	old, e := one(r.ctx(), r.DB, "SELECT * FROM group_policies WHERE group_id=$1", id)
+	old, e := one(r.ctx(), r.DB, "SELECT * FROM group_policies WHERE group_id IS NOT DISTINCT FROM $1::uuid", nullable(id))
 	if e != nil {
 		if ae, ok := e.(*APIError); !ok || ae.Status != 404 {
 			return nil, e
@@ -90,7 +96,7 @@ func groupPolicy(r *R) (any, error) {
 		return nil, e
 	}
 	m := clean(r.Body, "expected_version")
-	m["group_id"] = id
+	m["group_id"] = nullable(id)
 	var v M
 	if str(old, "id") == "" {
 		v, e = r.insert("group_policies", m)
@@ -100,7 +106,7 @@ func groupPolicy(r *R) (any, error) {
 	if e != nil {
 		return nil, e
 	}
-	return v, r.audit("group.policy.updated", "groups", id, old, v, "Настройки применяются к следующим операциям")
+	return v, r.audit("group.policy.updated", "group_policies", str(v, "id"), old, v, "Настройки применяются к следующим операциям")
 }
 func cancellationQuote(r *R) (any, error) {
 	b, e := r.owned("bookings", r.C.Param("id"))
@@ -165,7 +171,7 @@ func paymentVoid(r *R) (any, error) {
 	if str(p, "status") != "succeeded" {
 		return nil, conflict("PAYMENT_NOT_SUCCEEDED")
 	}
-	if str(p, "method") != "cash" && str(p, "method") != "transfer" {
+	if str(p, "method") != "cash" && str(p, "method") != "transfer" && str(p, "method") != "test" {
 		return nil, conflict("PROVIDER_REFUND_REQUIRED")
 	}
 	entry, e := one(r.ctx(), r.DB, "SELECT * FROM money_ledger WHERE payment_id=$1 AND reason='payment'", p["id"])
@@ -221,4 +227,43 @@ func receiptDelete(r *R) (any, error) {
 		return nil, e
 	}
 	return nil, r.audit("receipt.deleted", "receipts", str(old, "id"), clean(old, "content"), M{"deleted": true}, str(r.Body, "reason"))
+}
+
+// This endpoint never contacts a payment provider and is disabled outside explicit development mode.
+func testPayment(r *R) (any, error) {
+	if !r.A.C.PaymentStub {
+		return nil, fail(404, "NOT_FOUND")
+	}
+	if e := r.fields("invoice_id", ""); e != nil {
+		return nil, e
+	}
+	p, e := r.preparePayment("test")
+	if e != nil {
+		return nil, e
+	}
+	p, e = r.credit(p, r.now().Format(time.RFC3339Nano))
+	if e != nil {
+		return nil, e
+	}
+	return paymentPublic(p), nil
+}
+
+func (r *R) reserveAwaiting(child string) error {
+	rows, e := many(r.ctx(), r.DB, `SELECT b.* FROM bookings b JOIN lessons l ON l.id=b.lesson_id JOIN attendance a ON a.booking_id=b.id WHERE b.child_id=$1 AND b.status='active' AND b.funding_kind IN ('awaiting_payment','legacy') AND a.status='pending' AND l.status='scheduled' AND NOT EXISTS(SELECT 1 FROM invoices i WHERE i.booking_id=b.id AND i.status<>'cancelled') AND NOT EXISTS(SELECT 1 FROM subscription_reservations x WHERE x.booking_id=b.id) ORDER BY l.starts_at,b.created_at,b.id`, child)
+	if e != nil {
+		return e
+	}
+	for _, b := range rows {
+		l, e := r.get("lessons", str(b, "lesson_id"))
+		if e != nil {
+			return e
+		}
+		if e = r.reserve(b, l, "subscription"); e != nil {
+			if ae, ok := e.(*APIError); ok && ae.Code == "NO_AVAILABLE_LESSONS" {
+				continue
+			}
+			return e
+		}
+	}
+	return nil
 }

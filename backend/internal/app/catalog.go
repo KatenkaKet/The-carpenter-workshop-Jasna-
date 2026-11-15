@@ -295,7 +295,7 @@ func groupSave(r *R) (any, error) {
 
 func planSave(r *R) (any, error) {
 	patch := r.C.Request.Method == "PATCH"
-	req, opt := "title group_id lessons_total validity_days price_minor", ""
+	req, opt := "title lessons_total validity_days price_minor", "group_id"
 	if patch {
 		req, opt = "expected_version", "title lessons_total validity_days price_minor is_active"
 	}

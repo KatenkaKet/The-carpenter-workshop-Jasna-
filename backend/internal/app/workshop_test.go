@@ -232,7 +232,7 @@ func TestWorkshopReservationsAndCorrections(t *testing.T) {
 	parent.ok(t, "GET", "/families/me", nil, 401)
 	guest := &testClient{router: router}
 	guest.ok(t, "POST", "/auth/access-link/exchange", M{"token": strings.Split(str(link, "url"), "token=")[1]}, 401)
-	fresh := master.ok(t, "POST", linkPath, M{"expires_at": now.Add(24 * time.Hour).Format(time.RFC3339)}, 201)
+	fresh := master.ok(t, "POST", linkPath, M{"expires_at": now.Add(7 * 24 * time.Hour).Format(time.RFC3339)}, 201)
 	guest.auth(t, "/auth/access-link/exchange", M{"token": strings.Split(str(fresh, "url"), "token=")[1]})
 	guest.ok(t, "GET", "/families/me", nil, 200)
 	var unbalanced int
@@ -240,4 +240,90 @@ func TestWorkshopReservationsAndCorrections(t *testing.T) {
 	if unbalanced != 0 {
 		t.Fatal("ledger mismatch")
 	}
+	t.Run("requested_demo_cycle", func(t *testing.T) {
+		a.C.PaymentStub = true
+		f := master.ok(t, "POST", "/master/families", M{"parent_full_name": "Cycle fixture parent", "children": []M{{"full_name": "Cycle child one"}, {"full_name": "Cycle child two"}}}, 201)
+		children := f["children"].([]any)
+		first, second := object(children[0]), object(children[1])
+		ln := master.ok(t, "POST", "/master/families/"+str(f, "id")+"/access-links", M{"expires_at": now.Add(7 * 24 * time.Hour).Format(time.RFC3339)}, 201)
+		pc := &testClient{router: router}
+		pc.auth(t, "/auth/access-link/exchange", M{"token": strings.Split(str(ln, "url"), "token=")[1]})
+		lessonStart := now.Add(24 * time.Hour)
+		lesson := master.ok(t, "POST", "/master/lessons", M{"group_id": g["id"], "starts_at": lessonStart.Format(time.RFC3339), "ends_at": lessonStart.Add(75 * time.Minute).Format(time.RFC3339), "capacity": 2}, 201)
+		b := pc.ok(t, "POST", "/bookings", M{"lesson_id": lesson["id"], "child_id": first["id"], "funding_kind": "awaiting_payment"}, 201)
+		pc.ok(t, "POST", "/bookings", M{"lesson_id": lesson["id"], "child_id": second["id"], "funding_kind": "awaiting_payment"}, 201)
+		full := master.ok(t, "POST", "/bookings", M{"lesson_id": lesson["id"], "child_id": child, "funding_kind": "single_lesson"}, 409)
+		if str(object(full["error"]), "code") != "SEAT_LIMIT_EXCEEDED" {
+			t.Fatal(full)
+		}
+		pl := master.ok(t, "POST", "/master/plans", M{"title": "Four lessons universal", "lessons_total": 4, "validity_days": 30, "price_minor": 400000}, 201)
+		if pl["group_id"] != nil {
+			t.Fatal("new plan tied to group")
+		}
+		inv := pc.ok(t, "POST", "/invoices", M{"child_id": first["id"], "kind": "subscription", "plan_id": pl["id"], "valid_from": now.In(zone).Format("2006-01-02")}, 201)
+		body := M{"invoice_id": inv["id"]}
+		a.C.PaymentStub = false
+		pc.ok(t, "POST", "/payments/test-confirm", body, 404)
+		a.C.PaymentStub = true
+		ik := newID()
+		status, payment, _ := pc.request("POST", "/payments/test-confirm", body, ik)
+		if status != 201 {
+			t.Fatal(status, payment)
+		}
+		status, again, _ := pc.request("POST", "/payments/test-confirm", body, ik)
+		if status != 201 || again["id"] != payment["id"] {
+			t.Fatal("duplicate test credit", again)
+		}
+		pc.ok(t, "POST", "/payments/test-confirm", body, 409)
+		getSub := func() M { return object(pc.ok(t, "GET", "/families/me/subscriptions", nil, 200)["items"].([]any)[0]) }
+		s := getSub()
+		if num(s, "lessons_reserved") != 1 || num(s, "lessons_available") != 3 || num(s, "lessons_remaining") != 4 {
+			t.Fatal("booking not reserved after payment", s)
+		}
+		pol := master.ok(t, "GET", "/master/booking-policy", nil, 200)
+		master.ok(t, "PUT", "/master/booking-policy", M{"expected_version": pol["version"], "missed_charge_lesson": true, "free_cancel_before_hours": 0, "transfer_allowed": true}, 200)
+		now = lessonStart.Add(-time.Minute)
+		quote := pc.ok(t, "GET", "/bookings/"+str(b, "id")+"/cancellation", nil, 200)
+		if yes(quote, "will_charge") {
+			t.Fatal("zero hours not applied globally", quote)
+		}
+		now = lessonStart.Add(time.Minute)
+		master.ok(t, "PUT", "/master/lessons/"+str(lesson, "id")+"/attendance/"+str(b, "id"), M{"status": "attended", "expected_version": 1}, 200)
+		s = getSub()
+		if num(s, "lessons_remaining") != 3 || num(s, "lessons_used") != 1 || num(s, "lessons_reserved") != 0 || num(s, "lessons_available") != 3 {
+			t.Fatal("expected three remaining", s)
+		}
+		var buf bytes.Buffer
+		form := multipart.NewWriter(&buf)
+		part, _ := form.CreateFormFile("file", "cycle-receipt.pdf")
+		part.Write([]byte("%PDF-1.4\nfixture\n%%EOF"))
+		form.Close()
+		req := httptest.NewRequest("POST", "/api/v1/master/payments/"+str(payment, "id")+"/receipts", &buf)
+		req.Header.Set("Content-Type", form.FormDataContentType())
+		req.Header.Set("Origin", a.C.AppURL)
+		req.Header.Set("X-CSRF-Token", master.csrf)
+		req.AddCookie(master.cookie)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		if rec.Code != 201 {
+			t.Fatal(rec.Code, rec.Body.String())
+		}
+		rc, _ := decode(rec.Body.Bytes())
+		pc.ok(t, "GET", "/receipts/"+str(rc, "id")+"/download", nil, 200)
+		guest.ok(t, "GET", "/receipts/"+str(rc, "id"), nil, 404)
+		for _, file := range []string{"children", "attendance", "payments"} {
+			req := httptest.NewRequest("GET", "/api/v1/master/export/"+file+".csv", nil)
+			req.AddCookie(master.cookie)
+			out := httptest.NewRecorder()
+			router.ServeHTTP(out, req)
+			if out.Code != 200 || !strings.Contains(out.Header().Get("Content-Type"), "text/csv") || !strings.Contains(out.Body.String(), "\n") {
+				t.Fatal("CSV", file, out.Code, out.Body.String())
+			}
+		}
+		var count int
+		if err := db.QueryRow(ctx, "SELECT count(*) FROM subscription_ledger WHERE payment_id=$1", payment["id"]).Scan(&count); err != nil || count != 1 {
+			t.Fatal("duplicate credit", count, err)
+		}
+	})
+
 }

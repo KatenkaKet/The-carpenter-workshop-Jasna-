@@ -105,6 +105,7 @@ export interface ParentBooking {
   childId: string;
   lessonId: string;
   status: ParentBookingStatus;
+  fundingKind?: string;
   createdAt: string;
   confirmedAt?: string;
   invoiceId?: string;

@@ -187,6 +187,7 @@ export async function refresh() {
           method: (
             {
               cash: "Наличные",
+              test: "Тестовая оплата",
               transfer: "Перевод",
               online: "ЮKassa",
               sbp: "СБП",
@@ -208,6 +209,7 @@ export async function refresh() {
     childId: b.child_id,
     lessonId: b.lesson_id,
     status: b.status === "active" ? "confirmed" : "cancelled",
+    fundingKind:b.funding_kind,
     createdAt: b.created_at,
   }));
   state.marks = {};
@@ -270,7 +272,7 @@ export async function refresh() {
   }));
   ready.value = true;
 }
-async function selectRule(){if(!ruleGroup.value||user.value?.role!=="master")return;const group=ruleGroup.value;try{const r=await api('/master/groups/'+group+'/booking-policy');if(group!==ruleGroup.value)return;policyVersion.value=r.version;Object.assign(state.settings.rules,{chargeNoShow:r.missed_charge_lesson,cancelHours:r.free_cancel_before_hours,allowTransfer:r.transfer_allowed});}catch(e){policyVersion.value=0;throw e}}
+async function selectRule(){if(user.value?.role!=="master")return;const group=ruleGroup.value;try{const r=await api('/master/booking-policy');if(group!==ruleGroup.value)return;policyVersion.value=r.version;Object.assign(state.settings.rules,{chargeNoShow:r.missed_charge_lesson,cancelHours:r.free_cancel_before_hours,allowTransfer:r.transfer_allowed});}catch(e){policyVersion.value=0;throw e}}
 watch(ruleGroup,selectRule);
 const renewAttempts=new Map<string,{key:string,paymentId?:string,receiptDone?:boolean}>();
 export function useDemo() {
@@ -296,8 +298,8 @@ export function useDemo() {
     }
   }
   async function enroll(lesson: string, child: string) {
-    const l=lessonById(lesson);const has=serverSubscriptions.value.some(s=>s.child_id===child&&s.group_id===l?.groupId);
-    const r = await createBooking("", child, lesson,has?"subscription":"single_lesson");
+    const l=lessonById(lesson);const has=serverSubscriptions.value.some(s=>s.child_id===child&&(!s.group_id||s.group_id===l?.groupId));
+    const r = await createBooking("", child, lesson,has?"subscription":"awaiting_payment");
     if (!r.ok) throw new Error(r.message);
     return "ok";
   }
@@ -405,8 +407,8 @@ export function useDemo() {
     });
     await refresh();
   }
-  async function createTariff(p:any){await api('/master/plans','POST',{title:p.title,group_id:p.groupId,lessons_total:p.lessons,price_minor:Math.round(p.price*100),validity_days:p.days});await refresh();}
-  async function saveSettings(){await api('/master/groups/'+ruleGroup.value+'/booking-policy','PUT',{expected_version:policyVersion.value,missed_charge_lesson:state.settings.rules.chargeNoShow,free_cancel_before_hours:state.settings.rules.cancelHours,transfer_allowed:state.settings.rules.allowTransfer});await selectRule();}
+  async function createTariff(p:any){await api('/master/plans','POST',{title:p.title,lessons_total:p.lessons,price_minor:Math.round(p.price*100),validity_days:p.days});await refresh();}
+  async function saveSettings(){await api('/master/booking-policy','PUT',{expected_version:policyVersion.value,missed_charge_lesson:state.settings.rules.chargeNoShow,free_cancel_before_hours:state.settings.rules.cancelHours,transfer_allowed:state.settings.rules.allowTransfer});await selectRule();}
   async function attachReceipt(_child: string, payment: string, file: File) {
     const form = new FormData();
     form.append("file", file);

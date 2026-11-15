@@ -259,7 +259,7 @@ func export(r *R) (any, error) {
 	if !contains([]string{"children.csv", "attendance.csv", "payments.csv", "all.zip"}, name) {
 		return nil, fail(404, "NOT_FOUND")
 	}
-	required := name == "attendance.csv" || name == "payments.csv"
+	required := false
 	from, to, e := r.rangeDates(required)
 	if e != nil {
 		return nil, e

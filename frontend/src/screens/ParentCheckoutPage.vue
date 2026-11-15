@@ -3,7 +3,8 @@
     <a href="/yasna/parent-tariffs">← Тарифы</a>
     <h1 class="page-title mt-5">Оплата абонемента</h1>
     <p class="my-4">{{ plan?.title }} · {{ plan?.price }} ₽</p>
-    <p>
+    <p v-if="testMode" class="my-4">Тестовая оплата: деньги не списываются. Платёж будет отмечен как тестовый.</p>
+    <p v-else>
       Оплата подтверждается платёжным сервисом. После оплаты вернитесь в кабинет
       и проверьте статус.
     </p>
@@ -12,12 +13,12 @@
       :disabled="busy || !plan || !child"
       @click="pay"
     >
-      {{ busy ? "Открываем оплату…" : "Перейти к оплате через СБП" }}
+      {{ busy ? "Открываем оплату…" : testMode ? "Провести тестовую оплату" : "Перейти к оплате через СБП" }}
     </button>
   </main>
 </template>
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, onMounted } from "vue";
 import { api, key } from "../shared/api";
 import { useDemo } from "../shared/use-demo";
 import { DEMO_TODAY } from "../shared/demo";
@@ -28,6 +29,8 @@ const props = defineProps<{
 }>();
 const { state } = useDemo();
 const busy = ref(false);
+const testMode=ref(false);
+onMounted(async()=>{testMode.value=(await api("/public/payment-options")).test_enabled;});
 const plan = computed(() =>
   state.settings.tariffs.find((p) => p.id === props.tariff),
 );
@@ -53,12 +56,13 @@ async function pay() {
       invoiceId = inv.id;
     }
     const payment = await api(
-      "/payments/intent",
+      testMode.value ? "/payments/test-confirm" : "/payments/intent",
       "POST",
-      { invoice_id: invoiceId, method: "sbp" },
+      testMode.value ? {invoice_id:invoiceId} : { invoice_id: invoiceId, method: "sbp" },
       paymentKey,
     );
     sessionStorage.setItem("jasna.payment", payment.id);
+    if(testMode.value){location.assign("/payment-result");return;}
     if (!payment.payment_url)
       throw new Error("Платёж обрабатывается. Проверьте его в истории оплат.");
     location.assign(payment.payment_url);

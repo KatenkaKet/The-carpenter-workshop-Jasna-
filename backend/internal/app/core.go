@@ -31,7 +31,7 @@ type M map[string]any
 type Config struct {
 	DatabaseURL, Addr, AppURL, MasterLogin, MasterPassword, ShopID, Secret, ReturnURL string
 	Origins, ReceiptHosts                                                             []string
-	SecureCookies, PaymentTest                                                        bool
+	SecureCookies, PaymentTest, PaymentStub                                           bool
 }
 
 func env(k, d string) string {
@@ -43,6 +43,7 @@ func env(k, d string) string {
 
 func LoadConfig() (Config, error) {
 	c := Config{DatabaseURL: os.Getenv("DATABASE_URL"), Addr: ":" + env("PORT", "8080"), AppURL: env("APP_URL", "https://localhost:3000"), MasterLogin: os.Getenv("MASTER_LOGIN"), MasterPassword: os.Getenv("MASTER_PASSWORD"), ShopID: os.Getenv("YOOKASSA_SHOP_ID"), Secret: os.Getenv("YOOKASSA_SECRET_KEY"), ReturnURL: os.Getenv("PAYMENT_RETURN_URL"), SecureCookies: env("COOKIE_SECURE", "true") == "true", PaymentTest: true}
+	c.PaymentStub = env("APP_ENV", "production") == "development" && env("PAYMENT_STUB", "false") == "true"
 	c.Origins = strings.Split(env("ALLOWED_ORIGINS", c.AppURL), ",")
 	c.ReceiptHosts = strings.Split(env("RECEIPT_ALLOWED_HOSTS", "lknpd.nalog.ru"), ",")
 	if c.DatabaseURL == "" {

@@ -171,14 +171,16 @@
     <p class="mt-5 text-center text-[10px] leading-relaxed text-muted/70">
       Чеки хранятся в защищённом хранилище мастерской
     </p>
-  <PaymentCorrections parent/>
+  <p v-if="testMode" class="mt-4 text-sm">Тестовый режим оплаты: деньги не списываются.</p><PaymentCorrections parent/>
 </ParentShell>
 </template>
 
 <script setup lang="ts">
 import PaymentCorrections from "../components/PaymentCorrections.vue";
-import { ref } from "vue";
+import { ref, onMounted } from "vue";
 import { api, key } from "../shared/api";
+const testMode=ref(false);
+onMounted(async()=>{testMode.value=(await api("/public/payment-options")).test_enabled;});
 const paying = ref(false),
   paymentKeys = new Map<string, string>();
 async function payInvoice(id: string) {
@@ -188,12 +190,13 @@ async function payInvoice(id: string) {
     const k = paymentKeys.get(id) || key();
     paymentKeys.set(id, k);
     const p = await api(
-      "/payments/intent",
+      testMode.value ? "/payments/test-confirm" : "/payments/intent",
       "POST",
-      { invoice_id: id, method: "sbp" },
+      testMode.value ? {invoice_id:id} : { invoice_id: id, method: "sbp" },
       k,
     );
     sessionStorage.setItem("jasna.payment", p.id);
+    if(testMode.value){location.assign("/payment-result");return;}
     if (p.payment_url) location.assign(p.payment_url);
     else throw new Error("Проверьте статус платежа позже.");
   } finally {

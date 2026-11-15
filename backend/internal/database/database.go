@@ -41,7 +41,7 @@ func Migrate(ctx context.Context, db *pgxpool.Pool) error {
 	if _, e = tx.Exec(ctx, `CREATE SCHEMA IF NOT EXISTS jasna; CREATE TABLE IF NOT EXISTS jasna.schema_migrations(version integer PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())`); e != nil {
 		return e
 	}
-	for version, file := range []string{"001_init.sql", "002_workshop.sql"} {
+	for version, file := range []string{"001_init.sql", "002_workshop.sql", "003_universal_plans.sql"} {
 		var exists bool
 		v := version + 1
 		if e = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM jasna.schema_migrations WHERE version=$1)", v).Scan(&exists); e != nil {

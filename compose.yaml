@@ -35,6 +35,7 @@ services:
       YOOKASSA_SECRET_KEY: ${YOOKASSA_SECRET_KEY:-}
       PAYMENT_RETURN_URL: ${PAYMENT_RETURN_URL:-}
       PAYMENT_TEST: "true"
+      PAYMENT_STUB: ${PAYMENT_STUB:-false}
       RECEIPT_ALLOWED_HOSTS: ${RECEIPT_ALLOWED_HOSTS:-lknpd.nalog.ru}
     ports:
       - "127.0.0.1:8080:8080"
